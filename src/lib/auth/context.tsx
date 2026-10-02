@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChange, getCurrentUser, getUserProfile, AuthUser, UserProfile } from './auth';
+import { onAuthStateChange, getCurrentUser, getUserProfile, AuthUser, UserProfile } from '../../supabase/auth';
 
 interface AuthContextType {
   user: AuthUser | null;

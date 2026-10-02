@@ -471,14 +471,3 @@ export default function InsumosPage() {
     </ProtectedRoute>
   );
 }
-                <p className="text-xs text-gray-600">
-                  {item.qty} un. | Mínimo: {item.min}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </MainLayout>
-  );
-}

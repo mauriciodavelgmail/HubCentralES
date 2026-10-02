@@ -502,9 +502,3 @@ export default function ComprasPage() {
     </ProtectedRoute>
   );
 }
-          ))}
-        </div>
-      </div>
-    </MainLayout>
-  );
-}
