@@ -1,21 +1,7 @@
 import { supabase } from './auth';
+import { Database } from './database.types';
 
-export interface Supply {
-  id: string;
-  code: string;
-  name: string;
-  category: string;
-  current_quantity: number;
-  minimum_quantity: number;
-  unit: string;
-  status: 'normal' | 'baixo' | 'critico';
-  supplier?: string;
-  unit_cost?: number;
-  description?: string;
-  location?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type Supply = Database['public']['Tables']['supplies']['Row'];
 
 export async function getSupplies() {
   const { data, error } = await supabase

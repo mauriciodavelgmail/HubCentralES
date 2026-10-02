@@ -1,22 +1,7 @@
 import { supabase } from './auth';
+import { Database } from './database.types';
 
-export interface Purchase {
-  id: string;
-  purchase_number: string;
-  supply_id: string;
-  status: 'solicitacao' | 'aprovacao' | 'cotacao' | 'compra_realizada' | 'recebimento' | 'concluida' | 'cancelada';
-  priority: 'baixa' | 'media' | 'alta' | 'critica';
-  solicitant_id?: string;
-  department_id?: string;
-  estimated_value?: number;
-  justification?: string;
-  purchase_document_number?: string;
-  fiscal_document_url?: string;
-  received_date?: string;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type Purchase = Database['public']['Tables']['purchases']['Row'];
 
 export async function getPurchases() {
   const { data, error } = await supabase

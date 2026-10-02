@@ -1,22 +1,7 @@
 import { supabase } from './auth';
+import { Database } from './database.types';
 
-export interface Event {
-  id: string;
-  title: string;
-  description?: string;
-  event_type: string;
-  space_id: string;
-  responsible_id?: string;
-  requester_id?: string;
-  status: 'aguardando_aprovacao' | 'confirmada' | 'cancelada' | 'realizada';
-  start_date: string;
-  start_time: string;
-  end_time: string;
-  capacity?: number;
-  approved_at?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type Event = Database['public']['Tables']['events']['Row'];
 
 export async function getEvents() {
   const { data, error } = await supabase

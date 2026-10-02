@@ -1,24 +1,7 @@
 import { supabase } from './auth';
+import { Database } from './database.types';
 
-export interface Equipment {
-  id: string;
-  patrimonial_code: string;
-  name: string;
-  description?: string;
-  category?: string;
-  location: string;
-  responsible_id?: string;
-  status: 'disponivel' | 'em_uso' | 'em_manutencao' | 'indisponivel' | 'baixado';
-  acquisition_date?: string;
-  next_maintenance?: string;
-  image_url?: string;
-  manufacturer?: string;
-  model?: string;
-  serial_number?: string;
-  is_low: boolean;
-  created_at: string;
-  updated_at: string;
-}
+export type Equipment = Database['public']['Tables']['equipments']['Row'];
 
 export async function getEquipments() {
   const { data, error } = await supabase

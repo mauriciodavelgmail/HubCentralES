@@ -1,21 +1,7 @@
 import { supabase } from './auth';
+import { Database } from './database.types';
 
-export interface Occurrence {
-  id: string;
-  occurrence_number: string;
-  title: string;
-  description: string;
-  category: string;
-  priority: 'baixa' | 'media' | 'alta' | 'critica';
-  status: 'aberta' | 'em_analise' | 'em_execucao' | 'resolvida' | 'cancelada';
-  location: string;
-  solution?: string;
-  deadline?: string;
-  reporter_id: string;
-  responsible_id?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type Occurrence = Database['public']['Tables']['occurrences']['Row'];
 
 export async function getOccurrences() {
   const { data, error } = await supabase
