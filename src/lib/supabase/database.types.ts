@@ -1,7 +1,4 @@
-// Este arquivo deve ser gerado automaticamente pelo Supabase CLI
-// Para agora, criamos uma interface básica
-// Após executar: supabase gen types typescript --local > src/lib/supabase/database.types.ts
-
+// Database Types - Gerado com base na schema Supabase
 export type Database = {
   public: {
     Tables: {
@@ -68,6 +65,7 @@ export type Database = {
           solution: string | null;
           evidence_url: string | null;
           evidence_file_type: string | null;
+          occurred_at: string;
           deadline: string | null;
           resolved_at: string | null;
           created_at: string;
@@ -87,11 +85,14 @@ export type Database = {
           space_id: string;
           responsible_id: string;
           requester_id: string;
-          status: string;
+          status: 'cancelada' | 'aguardando_aprovacao' | 'confirmada' | 'realizada';
           start_date: string;
+          end_date: string;
           start_time: string;
           end_time: string;
           capacity: number | null;
+          expected_attendees: number | null;
+          image_url: string | null;
           attendance_list_created: boolean;
           approved_by: string | null;
           approved_at: string | null;
@@ -110,14 +111,17 @@ export type Database = {
           code: string;
           name: string;
           category: string;
+          quantity: number;
           current_quantity: number;
           minimum_quantity: number;
+          min: number;
           unit: string;
           status: string;
           description: string | null;
           supplier: string | null;
           unit_cost: number | null;
           location: string | null;
+          last_purchase_date: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -131,7 +135,12 @@ export type Database = {
           id: string;
           purchase_number: string;
           supply_id: string;
-          status: string;
+          description: string | null;
+          supplier: string | null;
+          quantity: number | null;
+          unit_cost: number | null;
+          total_cost: number | null;
+          status: 'solicitacao' | 'aprovacao' | 'cotacao' | 'compra_realizada' | 'recebimento' | 'concluida' | 'cancelada';
           priority: string;
           solicitant_id: string;
           department_id: string | null;
@@ -139,6 +148,8 @@ export type Database = {
           justification: string | null;
           purchase_document_number: string | null;
           fiscal_document_url: string | null;
+          requested_date: string | null;
+          expected_delivery_date: string | null;
           received_date: string | null;
           notes: string | null;
           created_at: string;
@@ -158,13 +169,19 @@ export type Database = {
           category: string | null;
           location: string;
           responsible_id: string | null;
-          status: string;
+          status: 'disponivel' | 'em_uso' | 'em_manutencao' | 'indisponivel' | 'baixado';
+          maintenance_status: string | null;
           acquisition_date: string | null;
+          purchase_date: string | null;
+          warranty_expiration_date: string | null;
+          last_maintenance_date: string | null;
           next_maintenance: string | null;
+          next_maintenance_date: string | null;
           image_url: string | null;
           manufacturer: string | null;
           model: string | null;
           serial_number: string | null;
+          notes: string | null;
           is_low: boolean;
           low_date: string | null;
           created_at: string;
@@ -181,3 +198,20 @@ export type Database = {
     Enums: Record<string, never>;
   };
 };
+
+// Type Exports for Components
+export type Document = Database['public']['Tables']['documents']['Row'];
+export type Occurrence = Database['public']['Tables']['occurrences']['Row'];
+export type Event = Database['public']['Tables']['events']['Row'];
+export type Supply = Database['public']['Tables']['supplies']['Row'];
+export type Purchase = Database['public']['Tables']['purchases']['Row'];
+export type Equipment = Database['public']['Tables']['equipments']['Row'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];
+
+// Type Exports for Inserts/Updates
+export type DocumentInsert = Database['public']['Tables']['documents']['Insert'];
+export type OccurrenceInsert = Database['public']['Tables']['occurrences']['Insert'];
+export type EventInsert = Database['public']['Tables']['events']['Insert'];
+export type SupplyInsert = Database['public']['Tables']['supplies']['Insert'];
+export type PurchaseInsert = Database['public']['Tables']['purchases']['Insert'];
+export type EquipmentInsert = Database['public']['Tables']['equipments']['Insert'];

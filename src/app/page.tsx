@@ -53,11 +53,13 @@ export default function Home() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Image
+            <svg
               className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+            >
+              <path fill="currentColor" d="M8 0l8 4.8v6.4L8 16 0 11.2V4.8L8 0z" />
+            </svg>
               height={14}
             />
             Deploy Now

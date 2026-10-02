@@ -43,14 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
 
     // Listen to auth changes
-    const { data: subscription } = onAuthStateChange((authUser, userProfile) => {
+    const subscription = onAuthStateChange((authUser, userProfile) => {
       setUser(authUser);
       setProfile(userProfile);
       setLoading(false);
     });
 
+    // Cleanup subscription
     return () => {
-      subscription?.unsubscribe();
+      if (subscription?.subscription) {
+        subscription.subscription.unsubscribe?.();
+      }
     };
   }, []);
 
