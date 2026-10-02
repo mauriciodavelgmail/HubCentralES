@@ -60,8 +60,6 @@ export default function Home() {
             >
               <path fill="currentColor" d="M8 0l8 4.8v6.4L8 16 0 11.2V4.8L8 0z" />
             </svg>
-              height={14}
-            />
             Deploy Now
           </a>
           <a
