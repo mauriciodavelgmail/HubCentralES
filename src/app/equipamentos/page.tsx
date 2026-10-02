@@ -9,7 +9,7 @@ import { getEquipments, createEquipment, updateEquipment, deleteEquipment, Equip
 import { Search, Plus, Trash2, Edit, AlertCircle, CheckCircle, Wrench, AlertTriangle } from 'lucide-react';
 
 const LOCATIONS = ['auditorio', 'sala_1', 'sala_2', 'hall', 'cozinha', 'lab_maker', 'sala_ti', 'area_externos'];
-const STATUSES = ['disponivel', 'em_uso', 'em_manutencao', 'desativado'];
+const STATUSES = ['disponivel', 'em_uso', 'em_manutencao', 'indisponivel', 'baixado'];
 const MAINTENANCE_STATUS = ['ok', 'atencao', 'alerta'];
 
 export default function EquipamentosPage() {
@@ -98,7 +98,10 @@ export default function EquipamentosPage() {
     e.preventDefault();
     try {
       if (editingId) {
-        await updateEquipment(editingId, formData);
+        await updateEquipment(editingId, {
+          ...formData,
+          status: formData.status as Equipment['status'],
+        });
       } else {
         await createEquipment(formData as any);
       }

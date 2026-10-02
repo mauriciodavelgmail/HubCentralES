@@ -98,7 +98,11 @@ export default function DocumentosPage() {
         setUploading(false);
       }
 
-      const submitData = { ...formData, file_url: finalFileUrl };
+      const submitData = {
+        ...formData,
+        file_url: finalFileUrl,
+        status: formData.status as Document['status'],
+      };
 
       if (editingId) {
         await updateDocument(editingId, submitData);

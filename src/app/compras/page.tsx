@@ -95,6 +95,7 @@ export default function ComprasPage() {
     try {
       const submitData = {
         ...formData,
+        status: formData.status as Purchase['status'],
         quantity: formData.quantity ? parseInt(formData.quantity) : null,
         unit_cost: formData.unit_cost ? parseFloat(formData.unit_cost) : null,
         total_cost: formData.total_cost ? parseFloat(formData.total_cost) : null,
@@ -125,7 +126,7 @@ export default function ComprasPage() {
   };
 
   const filteredPurchases = purchases.filter(purchase => {
-    const matchesSearch = purchase.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = purchase.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       purchase.purchase_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       purchase.supplier?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = !filterStatus || purchase.status === filterStatus;

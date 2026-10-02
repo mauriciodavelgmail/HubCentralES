@@ -35,7 +35,7 @@ export async function createSupply(supply: Omit<Supply, 'id' | 'created_at' | 'u
   return data as Supply;
 }
 
-export async function updateSupply(id: string, changes: Partial<Supply>) {
+export async function updateSupply(id: string, changes: Database['public']['Tables']['supplies']['Update']) {
   const { data, error } = await supabase
     .from('supplies')
     .update(changes)

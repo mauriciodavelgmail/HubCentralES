@@ -11,7 +11,7 @@ import { uploadImage } from '@/lib/supabase/storage';
 
 const SPACES = ['auditorio', 'sala_1', 'sala_2', 'multiuso', 'lab_maker', 'area_externos'];
 const EVENT_TYPES = ['reuniao', 'workshop', 'palestra', 'treinamento', 'conferencia', 'encontro', 'outro'];
-const STATUSES = ['planejado', 'confirmado', 'em_andamento', 'concluido', 'cancelado'];
+const STATUSES = ['aguardando_aprovacao', 'confirmada', 'realizada', 'cancelada'];
 
 export default function AgendaPage() {
   const { user, profile } = useAuth();
@@ -30,7 +30,7 @@ export default function AgendaPage() {
     title: '',
     description: '',
     event_type: 'reuniao',
-    status: 'planejado',
+    status: 'aguardando_aprovacao',
     space_id: '',
     start_date: '',
     start_time: '',
@@ -81,7 +81,7 @@ export default function AgendaPage() {
         title: '',
         description: '',
         event_type: 'reuniao',
-        status: 'planejado',
+        status: 'aguardando_aprovacao',
         space_id: '',
         start_date: '',
         start_time: '',
@@ -97,12 +97,13 @@ export default function AgendaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let submitData = {
+      let submitData: Partial<Event> = {
         ...formData,
         start_date: formData.start_date && formData.start_time ? `${formData.start_date}T${formData.start_time}:00` : '',
         end_date: formData.end_date && formData.end_time ? `${formData.end_date}T${formData.end_time}:00` : '',
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         expected_attendees: formData.expected_attendees ? parseInt(formData.expected_attendees) : null,
+        status: formData.status as Event['status'],
       };
 
       if (selectedFile) {
