@@ -18,44 +18,29 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
 
-  // Redirect if already logged in
   useEffect(() => {
-    if (!loading && isAuthenticated) {
+    if (isAuthenticated && user && !loading) {
       router.push('/dashboard');
     }
-  }, [isAuthenticated, loading, router]);
+  }, [isAuthenticated, user, loading, router]);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
+    setIsLoading(true);
 
     try {
-      await signIn(email, password);
-      // Auth state change will trigger redirect
-    } catch (err: any) {
-      const message = err?.message || 'Erro ao fazer login';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      if (mode === 'signup' && fullName.trim()) {
+        await signUp(email, password, fullName);
+      } else if (mode === 'login') {
+        await signIn(email, password);
+      }
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    try {
-      await signUp(email, password, fullName);
-      setError('');
-      setMode('login');
-      setEmail('');
-      setPassword('');
-      setFullName('');
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1000);
     } catch (err: any) {
-      const message = err?.message || 'Erro ao criar conta';
-      setError(message);
+      setError(err.message || 'Erro ao processar solicitação');
     } finally {
       setIsLoading(false);
     }
@@ -63,186 +48,94 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando...</p>
+          <div className="inline-block w-12 h-12 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600">Carregando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-blue-700 text-white items-center justify-center p-12">
-        <div className="text-center">
-          <h1 className="text-5xl font-bold mb-4">HubCentral ES+</h1>
-          <p className="text-xl text-blue-100 mb-8">
-            Gestão Integrada do HUB ES+
-          </p>
-          <p className="text-blue-200 max-w-md">
-            Centralizando documentos, ocorrências, agenda, compras, insumos, equipamentos e comunicação
-          </p>
-          
-          <div className="mt-12 space-y-4 max-w-sm">
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">📋</div>
-              <div className="text-left">
-                <h3 className="font-semibold">Documentação</h3>
-                <p className="text-sm text-blue-200">Gestão centralizada de documentos</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">⚠️</div>
-              <div className="text-left">
-                <h3 className="font-semibold">Ocorrências</h3>
-                <p className="text-sm text-blue-200">Rastreamento de problemas em tempo real</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">📅</div>
-              <div className="text-left">
-                <h3 className="font-semibold">Agenda</h3>
-                <p className="text-sm text-blue-200">Agendamento de eventos e espaços</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">📊</div>
-              <div className="text-left">
-                <h3 className="font-semibold">Indicadores</h3>
-                <p className="text-sm text-blue-200">Análise de dados em tempo real</p>
-              </div>
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-lg shadow-xl p-8">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">HubCentral</h1>
+            <p className="text-gray-600">Plataforma de Gestão Integrada</p>
           </div>
-        </div>
-      </div>
 
-      {/* Right side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-4 bg-gray-50">
-        <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="lg:hidden text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-600 mb-2">HubCentral</h1>
-            <p className="text-gray-600">ES+ Criativo</p>
-          </div>
+          {/* Error Alert */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
 
           {/* Form */}
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            {/* Tabs */}
-            <div className="flex gap-4 mb-8">
-              <button
-                onClick={() => {
-                  setMode('login');
-                  setError('');
-                }}
-                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                  mode === 'login'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Entrar
-              </button>
-              <button
-                onClick={() => {
-                  setMode('signup');
-                  setError('');
-                }}
-                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                  mode === 'signup'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Cadastro
-              </button>
-            </div>
-
-            {/* Error message */}
-            {error && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-                <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-                <p className="text-sm text-red-800">{error}</p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Seu nome"
+                />
               </div>
             )}
 
-            {/* Test Credentials Info */}
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs font-semibold text-blue-900 mb-1">Dados de Teste:</p>
-              <p className="text-xs text-blue-800">Email: admin@hubcentral.es</p>
-              <p className="text-xs text-blue-800">Senha: senha123</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="seu@email.com"
+                required
+              />
             </div>
 
-            {/* Form */}
-            <form onSubmit={mode === 'login' ? handleSignIn : handleSignUp} className="space-y-4">
-              {mode === 'signup' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nome Completo
-                  </label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Seu Nome"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-              )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Sua senha"
+                required
+              />
+            </div>
 
-              {/* Email input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
+            {mode === 'login' && (
+              <div className="text-right">
+                <Link href="#" className="text-sm text-blue-600 hover:text-blue-700">
+                  Esqueceu a senha?
+                </Link>
               </div>
+            )}
 
-              {/* Password input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Senha
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700"
+              loading={isLoading}
+            >
+              {mode === 'login' ? 'Entrar' : 'Criar Conta'}
+            </Button>
+          </form>
 
-              {mode === 'login' && (
-                <div className="text-right">
-                  <Link href="#" className="text-sm text-blue-600 hover:text-blue-700">
-                    Esqueceu a senha?
-                  </Link>
-                </div>
-              )}
-
-              {/* Buttons */}
-              <Button
-                type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700"
-                loading={isLoading}
-              >
-                {mode === 'login' ? 'Entrar' : 'Criar Conta'}
-              </Button>
-            </form>
-
-            {/* Footer */}
+          {/* Toggle Mode */}
+          <div className="mt-6 text-center">
             {mode === 'login' ? (
-              <p className="mt-6 text-center text-sm text-gray-600">
+              <p className="text-sm text-gray-600">
                 Não tem conta?{' '}
                 <button
                   onClick={() => {
@@ -251,11 +144,11 @@ export default function LoginPage() {
                   }}
                   className="text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  Cadastre-se aqui
+                  Cadastre-se
                 </button>
               </p>
             ) : (
-              <p className="mt-6 text-center text-sm text-gray-600">
+              <p className="text-sm text-gray-600">
                 Já tem conta?{' '}
                 <button
                   onClick={() => {
@@ -269,79 +162,8 @@ export default function LoginPage() {
               </p>
             )}
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-                <div className="text-right">
-                  <Link href="#" className="text-sm text-blue-600 hover:text-blue-700">
-                    Esqueceu a senha?
-                  </Link>
-                </div>
-              )}
 
-              {/* Buttons */}
-              <Button
-                type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700"
-                loading={isLoading}
-              >
-                {mode === 'login' ? 'Entrar' : 'Criar Conta'}
-              </Button>
-            </form>
-
-            {/* Footer */}
-            {mode === 'login' ? (
-              <p className="mt-6 text-center text-sm text-gray-600">
-                Não tem conta?{' '}
-                <button
-                  onClick={() => {
-                    setMode('signup');
-                    setError('');
-                  }}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Cadastre-se aqui
-                </button>
-              </p>
-            ) : (
-              <p className="mt-6 text-center text-sm text-gray-600">
-                Já tem conta?{' '}
-                <button
-                  onClick={() => {
-                    setMode('login');
-                    setError('');
-                  }}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Faça login
-                </button>
-              </p>
-            )}
-              <p className="mt-6 text-center text-sm text-gray-600">
-                Não tem conta?{' '}
-                <button
-                  onClick={() => setMode('signup')}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Cadastre-se aqui
-                </button>
-              </p>
-            ) : (
-              <p className="mt-6 text-center text-sm text-gray-600">
-                Já tem conta?{' '}
-                <button
-                  onClick={() => setMode('login')}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Faça login
-                </button>
-              </p>
-            )}
-          </div>
-
-          {/* Demo info */}
+          {/* Demo Info */}
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-xs text-gray-600">
               <strong>Credenciais de demonstração:</strong> Use qualquer email e senha para testar

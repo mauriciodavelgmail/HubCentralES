@@ -5,15 +5,27 @@ import { MainLayout } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, LoadingSpinner, EmptyState, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui';
 import { ProtectedRoute } from '@/lib/auth/protected-route';
 import { useAuth } from '@/lib/auth/context';
-import { getOccurrences, createOccurrence, updateOccurrence, deleteOccurrence, Occurrence, getOccurrencesByStatus, getOccurrencesByPriority } from '@/lib/supabase/occurrences';
-import { Search, Plus, Trash2, Edit, AlertCircle, CheckCircle, Clock, Eye, Upload } from 'lucide-react';
+import { getOccurrences, createOccurrence, updateOccurrence, deleteOccurrence, Occurrence } from '@/lib/supabase/occurrences';
 import { uploadEvidence } from '@/lib/supabase/storage';
+import { Search, Plus, Trash2, Edit, AlertCircle, CheckCircle, Clock, Upload } from 'lucide-react';
 
-const OCCURRENCES_CATEGORIES = ['infraestrutura', 'tecnologia', 'limpeza', 'seguranca', 'administrativo', 'manutencao'];
-const STATUSES = ['aberta', 'em_analise', 'em_execucao', 'resolvida', 'fechada'];
+const STATUSES = ['aberta', 'em_analise', 'resolvida', 'fechada', 'cancelada'];
 const PRIORITIES = ['baixa', 'media', 'alta', 'critica'];
+const STATUS_COLORS: Record<string, string> = {
+  aberta: 'bg-blue-100 text-blue-800',
+  em_analise: 'bg-yellow-100 text-yellow-800',
+  resolvida: 'bg-green-100 text-green-800',
+  fechada: 'bg-gray-100 text-gray-800',
+  cancelada: 'bg-red-100 text-red-800',
+};
+const PRIORITY_COLORS: Record<string, string> = {
+  baixa: 'bg-green-100 text-green-800',
+  media: 'bg-yellow-100 text-yellow-800',
+  alta: 'bg-orange-100 text-orange-800',
+  critica: 'bg-red-100 text-red-800',
+};
 
-export default function OccurrencesPage() {
+export default function OcorrenciasPage() {
   const { user, profile } = useAuth();
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,19 +39,18 @@ export default function OccurrencesPage() {
   const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState({
+    occurrence_number: '',
     title: '',
     description: '',
-    category: 'infraestrutura',
-    priority: 'media',
-    status: 'aberta',
     location: '',
-    reporter_id: '',
-    responsible_id: '',
+    category: 'manutencao',
+    status: 'aberta',
+    priority: 'media',
     solution: '',
-    resolution_date: '',
+    evidence_url: '',
+    occurred_at: new Date().toISOString().split('T')[0],
   });
 
-  // Load occurrences
   useEffect(() => {
     loadOccurrences();
   }, []);
@@ -48,557 +59,436 @@ export default function OccurrencesPage() {
     try {
       setLoading(true);
       const data = await getOccurrences();
-      setOccurrences(data);
+      setOccurrences(Array.isArray(data) ? data : []);
       setError('');
     } catch (err: any) {
       setError('Erro ao carregar ocorrências: ' + err.message);
-      console.error(err);
+      setOccurrences([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenDialog = (occurrence?: Occurrence) => {
-    if (occurrence) {
-      setEditingId(occurrence.id);
-      setFormData({
-        title: occurrence.title,
-        description: occurrence.description || '',
-        category: occurrence.category,
-        priority: occurrence.priority,
-        status: occurrence.status,
-        location: occurrence.location || '',
-        reporter_id: occurrence.reporter_id || '',
-        responsible_id: occurrence.responsible_id || '',
-        solution: occurrence.solution || '',
-        resolution_date: occurrence.resolution_date || '',
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        title: '',
-        description: '',
-        category: 'infraestrutura',
-        priority: 'media',
-        status: 'aberta',
-        location: '',
-        reporter_id: '',
-        responsible_id: '',
-        solution: '',
-        resolution_date: '',
-      });
-    }
-    setShowDialog(true);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let evidenceUrl: string | undefined = undefined;
+      let finalEvidenceUrl = formData.evidence_url;
 
       if (selectedFile) {
         setUploading(true);
-        const uploadResult = await uploadEvidence(selectedFile, editingId || '');
-        evidenceUrl = uploadResult.url;
+        const uploadResult = await uploadEvidence(selectedFile, 'evidence');
+        finalEvidenceUrl = uploadResult.url;
         setUploading(false);
       }
 
-      const submitData = {
-        ...formData,
-        ...(evidenceUrl && { evidence_url: evidenceUrl }),
-      };
+      const submitData = { ...formData, evidence_url: finalEvidenceUrl };
 
       if (editingId) {
-        await updateOccurrence(editingId, submitData);
+        await updateOccurrence(editingId, submitData as any);
       } else {
         await createOccurrence(submitData as any);
       }
+
       await loadOccurrences();
       setShowDialog(false);
+      setFormData({
+        occurrence_number: '',
+        title: '',
+        description: '',
+        location: '',
+        category: 'manutencao',
+        status: 'aberta',
+        priority: 'media',
+        solution: '',
+        evidence_url: '',
+        occurred_at: new Date().toISOString().split('T')[0],
+      });
+      setEditingId(null);
       setSelectedFile(null);
-      setError('');
     } catch (err: any) {
       setError('Erro ao salvar ocorrência: ' + err.message);
-      setUploading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja deletar esta ocorrência?')) return;
-    try {
-      await deleteOccurrence(id);
-      await loadOccurrences();
-      setError('');
-    } catch (err: any) {
-      setError('Erro ao deletar ocorrência: ' + err.message);
+    if (window.confirm('Deseja deletar esta ocorrência?')) {
+      try {
+        await deleteOccurrence(id);
+        await loadOccurrences();
+      } catch (err: any) {
+        setError('Erro ao deletar: ' + err.message);
+      }
     }
   };
 
-  const filteredOccurrences = occurrences.filter(occ => {
-    const matchesSearch = occ.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      occ.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = !filterStatus || occ.status === filterStatus;
-    const matchesPriority = !filterPriority || occ.priority === filterPriority;
-    return matchesSearch && matchesStatus && matchesPriority;
+  const handleEdit = (occurrence: Occurrence) => {
+    setFormData({
+      occurrence_number: occurrence.occurrence_number || '',
+      title: occurrence.title || '',
+      description: occurrence.description || '',
+      location: occurrence.location || '',
+      category: occurrence.category || 'manutencao',
+      status: occurrence.status || 'aberta',
+      priority: occurrence.priority || 'media',
+      solution: occurrence.solution || '',
+      evidence_url: occurrence.evidence_url || '',
+      occurred_at: occurrence.occurred_at || new Date().toISOString().split('T')[0],
+    });
+    setEditingId(occurrence.id);
+    setShowDialog(true);
+  };
+
+  const filteredOccurrences = occurrences.filter((occ) => {
+    const matchSearch =
+      occ.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      occ.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      occ.occurrence_number?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchStatus = !filterStatus || occ.status === filterStatus;
+    const matchPriority = !filterPriority || occ.priority === filterPriority;
+    return matchSearch && matchStatus && matchPriority;
   });
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'resolvida':
-      case 'fechada':
-        return <CheckCircle size={16} className="text-green-600" />;
-      case 'em_execucao':
-        return <Clock size={16} className="text-blue-600" />;
-      case 'aberta':
-        return <AlertCircle size={16} className="text-red-600" />;
-      default:
-        return <Clock size={16} className="text-gray-600" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'resolvida':
-      case 'fechada':
-        return 'success';
-      case 'em_execucao':
-        return 'info';
-      case 'em_analise':
-        return 'warning';
-      case 'aberta':
-        return 'danger';
-      default:
-        return 'secondary';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critica':
-        return 'danger';
-      case 'alta':
-        return 'warning';
-      case 'media':
-        return 'info';
-      default:
-        return 'secondary';
-    }
-  };
 
   return (
     <ProtectedRoute>
-      <MainLayout
-        userName={profile?.full_name || 'Usuário'}
-        userRole={profile?.role || 'visitante'}
-        title="Ocorrências"
-        subtitle="Gerencie todas as ocorrências técnicas e operacionais"
-      >
+      <MainLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex gap-2 flex-1">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Ocorrências</h1>
+              <p className="text-gray-600 mt-1">Registre e acompanhe ocorrências e manutenção</p>
+            </div>
+            <Button
+              onClick={() => {
+                setShowDialog(true);
+                setEditingId(null);
+                setFormData({
+                  occurrence_number: '',
+                  title: '',
+                  description: '',
+                  location: '',
+                  category: 'manutencao',
+                  status: 'aberta',
+                  priority: 'media',
+                  solution: '',
+                  evidence_url: '',
+                  occurred_at: new Date().toISOString().split('T')[0],
+                });
+              }}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              <Plus size={18} className="mr-2" />
+              Criar Ocorrência
+            </Button>
+          </div>
+
+          {/* Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Buscar</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Pesquisar por título ou descrição..."
+                  placeholder="Buscar por título, número..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Todos Status</option>
-                {STATUSES.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-              <select
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Todas Prioridades</option>
-                {PRIORITIES.map(priority => (
-                  <option key={priority} value={priority}>{priority}</option>
-                ))}
-              </select>
             </div>
-            <Button
-              onClick={() => handleOpenDialog()}
-              className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Plus size={20} />
-              Nova Ocorrência
-            </Button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todos</option>
+                  {STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Prioridade</label>
+                <select
+                  value={filterPriority}
+                  onChange={(e) => setFilterPriority(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Todas</option>
+                  {PRIORITIES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
-          {/* Error */}
+          {/* Error Alert */}
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-              <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
 
-          {/* Occurrences Table */}
+          {/* Content */}
           {loading ? (
-            <div className="flex items-center justify-center min-h-96">
-              <LoadingSpinner size="lg" />
+            <div className="flex justify-center py-12">
+              <LoadingSpinner />
             </div>
           ) : filteredOccurrences.length === 0 ? (
             <EmptyState
-              title="Nenhuma ocorrência encontrada"
-              description="Comece criando sua primeira ocorrência"
-              action={<Button onClick={() => handleOpenDialog()} className="bg-blue-600 text-white">Criar Ocorrência</Button>}
+              icon={<AlertCircle className="w-12 h-12 text-gray-400" />}
+              title="Nenhuma ocorrência"
+              description="Comece criando uma novo ocorrência para acompanhamento."
             />
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>{filteredOccurrences.length} Ocorrência(s)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Título</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Categoria</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Prioridade</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Local</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredOccurrences.map(occ => (
-                        <tr key={occ.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="font-medium text-gray-900">{occ.title}</p>
-                              <p className="text-xs text-gray-500">{occ.description?.substring(0, 50)}...</p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="info">{occ.category}</Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={getPriorityColor(occ.priority) as any}>{occ.priority}</Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(occ.status)}
-                              <Badge variant={getStatusColor(occ.status) as any}>{occ.status}</Badge>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {occ.location || '—'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenDialog(occ)}
-                                className="text-gray-600 hover:bg-gray-100"
-                              >
-                                <Edit size={16} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(occ.id)}
-                                className="text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 size={16} />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Create/Edit Dialog */}
-          <Dialog open={showDialog} onOpenChange={setShowDialog}>
-            <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingId ? 'Editar Ocorrência' : 'Nova Ocorrência'}</DialogTitle>
-                <DialogDescription>
-                  {editingId ? 'Atualize os dados da ocorrência' : 'Preencha os dados da nova ocorrência'}
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
-                  <textarea
-                    required
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Location */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Local</label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Category, Priority, Status */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria *</label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {OCCURRENCES_CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Prioridade *</label>
-                    <select
-                      value={formData.priority}
-                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {PRIORITIES.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {STATUSES.map(status => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Solution */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Solução</label>
-                  <textarea
-                    value={formData.solution}
-                    onChange={(e) => setFormData({ ...formData, solution: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Evidence Upload */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Evidência (Foto/Vídeo)</label>
-                  <div className="flex gap-2">
+            <div className="grid gap-4">
+              {filteredOccurrences.map((occurrence) => (
+                <Card key={occurrence.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="flex flex-row items-start justify-between">
                     <div className="flex-1">
-                      <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition">
-                        <Upload size={18} className="text-gray-400" />
-                        <span className="text-sm text-gray-600">
-                          {selectedFile ? selectedFile.name : 'Selecionar arquivo'}
-                        </span>
-                        <input
-                          type="file"
-                          hidden
-                          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                          accept="image/*,video/*"
-                          disabled={uploading}
-                        />
-                      </label>
+                      <CardTitle className="text-lg font-semibold">
+                        {occurrence.title}
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        #{occurrence.occurrence_number} • {occurrence.location}
+                      </CardDescription>
                     </div>
-                    {selectedFile && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedFile(null)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        ✕
-                      </Button>
+                    <div className="flex gap-2">
+                      <Badge className={STATUS_COLORS[occurrence.status]}>
+                        {occurrence.status}
+                      </Badge>
+                      <Badge className={PRIORITY_COLORS[occurrence.priority]}>
+                        {occurrence.priority}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-gray-600">{occurrence.description}</p>
+                    {occurrence.solution && (
+                      <div className="p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+                        <strong>Solução:</strong> {occurrence.solution}
+                      </div>
                     )}
-                  </div>
-                </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        onClick={() => handleEdit(occurrence)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Edit size={16} className="mr-1" />
+                        Editar
+                      </Button>
+                      <Button
+                        onClick={() => handleDelete(occurrence.id)}
+                        variant="danger"
+                        size="sm"
+                      >
+                        <Trash2 size={16} className="mr-1" />
+                        Deletar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
 
-                {/* Resolution Date */}
+        {/* Dialog */}
+        <Dialog open={showDialog} onOpenChange={setShowDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingId ? 'Editando' : 'Criando'} Ocorrência
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Resolução</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Número da Ocorrência
+                  </label>
                   <input
-                    type="date"
-                    value={formData.resolution_date}
-                    onChange={(e) => setFormData({ ...formData, resolution_date: e.target.value })}
+                    type="text"
+                    value={formData.occurrence_number}
+                    onChange={(e) =>
+                      setFormData({ ...formData, occurrence_number: e.target.value })
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowDialog(false)} disabled={uploading}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={uploading}>
-                    {uploading ? 'Enviando...' : (editingId ? 'Atualizar' : 'Criar')} Ocorrência
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Categoria
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) =>
+                      setFormData({ ...formData, category: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="manutencao">Manutenção</option>
+                    <option value="limpeza">Limpeza</option>
+                    <option value="seguranca">Segurança</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Título
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descrição
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) =>
+                      setFormData({ ...formData, status: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Prioridade
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) =>
+                      setFormData({ ...formData, priority: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {PRIORITIES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Local
+                </label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) =>
+                    setFormData({ ...formData, location: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Data da Ocorrência
+                </label>
+                <input
+                  type="date"
+                  value={formData.occurred_at}
+                  onChange={(e) =>
+                    setFormData({ ...formData, occurred_at: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Solução
+                </label>
+                <textarea
+                  value={formData.solution}
+                  onChange={(e) =>
+                    setFormData({ ...formData, solution: e.target.value })
+                  }
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Evidência (Foto/Vídeo)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {uploading && <p className="text-sm text-blue-600 mt-2">Enviando...</p>}
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700">
+                  {editingId ? 'Atualizar' : 'Criar'} Ocorrência
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </MainLayout>
     </ProtectedRoute>
-  );
-}
-            <Button variant="primary" onClick={handleSubmitOccurrence}>
-              Criar Ocorrência
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          {/* Intelligent Suggestion */}
-          {showSuggestion && suggestion && (
-            <Alert variant="info" title="Sugestão Inteligente">
-              <div className="space-y-2 text-sm">
-                <p>
-                  <strong>Prioridade sugerida:</strong> {suggestion.suggestedPriority} (Confiança:{' '}
-                  {Math.round(suggestion.confidence * 100)}%)
-                </p>
-                {suggestion.suggestedDepartment && (
-                  <p>
-                    <strong>Departamento:</strong> {suggestion.suggestedDepartment}
-                  </p>
-                )}
-                <p>
-                  <strong>Prazo recomendado:</strong> {suggestion.suggestedDeadlineDays} dias
-                </p>
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" onClick={handleAcceptSuggestion}>
-                    Aceitar sugestão
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowSuggestion(false)}
-                  >
-                    Ignorar
-                  </Button>
-                </div>
-              </div>
-            </Alert>
-          )}
-
-          <Input label="Título" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} />
-
-          <Textarea
-            label="Descrição"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            rows={4}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Categoria"
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              options={OCCURRENCE_CATEGORIES}
-            />
-            <Select
-              label="Prioridade"
-              value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-              options={[
-                { value: 'baixa', label: 'Baixa' },
-                { value: 'media', label: 'Média' },
-                { value: 'alta', label: 'Alta' },
-                { value: 'critica', label: 'Crítica' },
-              ]}
-            />
-          </div>
-
-          <Input label="Local" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} />
-
-          <Button variant="outline" onClick={handleGenerateSuggestion} className="w-full">
-            <Zap size={18} className="mr-2" />
-            Gerar Sugestão Inteligente
-          </Button>
-        </div>
-      </Modal>
-
-      {/* Detail Modal */}
-      {selectedOccurrence && (
-        <Modal
-          isOpen={!!selectedOccurrence}
-          title={selectedOccurrence.occurrence_number}
-          onClose={() => setSelectedOccurrence(null)}
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold text-gray-900">{selectedOccurrence.title}</h3>
-              <p className="text-sm text-gray-600 mt-2">{selectedOccurrence.description}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-600">Status</p>
-                <Badge className={STATUS_COLORS[selectedOccurrence.status]}>
-                  {selectedOccurrence.status}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-gray-600">Prioridade</p>
-                <Badge className={PRIORITY_COLORS[selectedOccurrence.priority]}>
-                  {selectedOccurrence.priority}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-gray-600">Local</p>
-                <p className="font-medium">{selectedOccurrence.location}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Categoria</p>
-                <p className="font-medium capitalize">{selectedOccurrence.category}</p>
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </MainLayout>
   );
 }

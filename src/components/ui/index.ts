@@ -106,210 +106,240 @@ export const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(({
 
 CardContent.displayName = 'CardContent';
 
-interface CardFooterProps extends React.HTMLAttributes<HTMLDivElement> {
+interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: 'default' | 'secondary' | 'destructive';
   children?: React.ReactNode;
 }
 
-export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(({ className, children, ...props }, ref) => (
-  <div className={cn('px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-lg flex justify-end gap-2', className)} ref={ref} {...props}>
+export const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(({ className, variant = 'default', children, ...props }, ref) => (
+  <div
+    className={cn(
+      'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+      variant === 'default' ? 'bg-blue-100 text-blue-800' : variant === 'secondary' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800',
+      className
+    )}
+    ref={ref}
+    {...props}
+  >
     {children}
   </div>
 ));
 
-CardFooter.displayName = 'CardFooter';
+Badge.displayName = 'Badge';
 
-interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
-  children?: React.ReactNode;
+interface LoadingSpinnerProps {
+  size?: 'sm' | 'md' | 'lg';
 }
 
-export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(({ className, variant = 'primary', children, ...props }, ref) => {
-  const variantStyles = {
-    primary: 'bg-blue-100 text-blue-800',
-    success: 'bg-green-100 text-green-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    danger: 'bg-red-100 text-red-800',
-    info: 'bg-cyan-100 text-cyan-800',
+export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'md' }) => {
+  const sizeClasses = {
+    sm: 'w-4 h-4 border-2',
+    md: 'w-8 h-8 border-2',
+    lg: 'w-12 h-12 border-4',
   };
 
   return (
-    <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', variantStyles[variant], className)} ref={ref} {...props}>
-      {children}
-    </span>
+    <div className={cn('border-gray-300 border-t-blue-600 rounded-full animate-spin', sizeClasses[size])} />
   );
-});
+};
 
-Badge.displayName = 'Badge';
+LoadingSpinner.displayName = 'LoadingSpinner';
+
+interface EmptyStateProps {
+  icon?: React.ReactNode;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}
+
+export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, action }) => (
+  <div className="text-center py-12">
+    {icon && <div className="flex justify-center mb-4">{icon}</div>}
+    <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
+    <p className="text-sm text-gray-600 mb-4">{description}</p>
+    {action && action}
+  </div>
+);
+
+EmptyState.displayName = 'EmptyState';
+
+interface DialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children?: React.ReactNode;
+}
+
+export const Dialog: React.FC<DialogProps> = ({ open = false, onOpenChange, children }) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange?.(false)} />
+      <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+Dialog.displayName = 'Dialog';
+
+interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  children?: React.ReactNode;
+}
+
+export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(({ className, children, ...props }, ref) => (
+  <div className={cn('p-6', className)} ref={ref} {...props}>
+    {children}
+  </div>
+));
+
+DialogContent.displayName = 'DialogContent';
+
+interface DialogHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+  children?: React.ReactNode;
+}
+
+export const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(({ className, children, ...props }, ref) => (
+  <div className={cn('mb-4', className)} ref={ref} {...props}>
+    {children}
+  </div>
+));
+
+DialogHeader.displayName = 'DialogHeader';
+
+interface DialogTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  children?: React.ReactNode;
+}
+
+export const DialogTitle = React.forwardRef<HTMLHeadingElement, DialogTitleProps>(({ className, children, ...props }, ref) => (
+  <h2 className={cn('text-lg font-semibold text-gray-900', className)} ref={ref} {...props}>
+    {children}
+  </h2>
+));
+
+DialogTitle.displayName = 'DialogTitle';
+
+interface DialogDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {
+  children?: React.ReactNode;
+}
+
+export const DialogDescription = React.forwardRef<HTMLParagraphElement, DialogDescriptionProps>(({ className, children, ...props }, ref) => (
+  <p className={cn('text-sm text-gray-600', className)} ref={ref} {...props}>
+    {children}
+  </p>
+));
+
+DialogDescription.displayName = 'DialogDescription';
+
+interface DialogFooterProps extends React.HTMLAttributes<HTMLDivElement> {
+  children?: React.ReactNode;
+}
+
+export const DialogFooter = React.forwardRef<HTMLDivElement, DialogFooterProps>(({ className, children, ...props }, ref) => (
+  <div className={cn('mt-6 flex justify-end gap-3', className)} ref={ref} {...props}>
+    {children}
+  </div>
+));
+
+DialogFooter.displayName = 'DialogFooter';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, label, error, ...props }, ref) => (
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, error, className, ...props }, ref) => (
   <div className="w-full">
     {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
     <input
       className={cn(
-        'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+        'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
         error && 'border-red-500',
         className
       )}
       ref={ref}
       {...props}
     />
-    {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+    {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
   </div>
 ));
 
 Input.displayName = 'Input';
 
-interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-  error?: string;
-}
-
-export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, label, error, ...props }, ref) => (
-  <div className="w-full">
-    {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
-    <textarea
-      className={cn(
-        'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none',
-        error && 'border-red-500',
-        className
-      )}
-      ref={ref}
-      {...props}
-    />
-    {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
-  </div>
-));
-
-Textarea.displayName = 'Textarea';
-
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
+  options?: { value: string; label: string }[];
   error?: string;
-  options: { value: string | number; label: string }[];
 }
 
-export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({ className, label, error, options, ...props }, ref) => (
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({ label, options = [], error, className, ...props }, ref) => (
   <div className="w-full">
     {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
     <select
       className={cn(
-        'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+        'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
         error && 'border-red-500',
         className
       )}
       ref={ref}
       {...props}
     >
-      <option value="">Selecione uma opção</option>
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
         </option>
       ))}
     </select>
-    {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+    {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
   </div>
 ));
 
 Select.displayName = 'Select';
 
-interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'success' | 'error' | 'warning' | 'info';
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+  error?: string;
+}
+
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ label, error, className, ...props }, ref) => (
+  <div className="w-full">
+    {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+    <textarea
+      className={cn(
+        'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+        error && 'border-red-500',
+        className
+      )}
+      ref={ref}
+      {...props}
+    />
+    {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+  </div>
+));
+
+Textarea.displayName = 'Textarea';
+
+interface AlertProps {
+  variant?: 'default' | 'destructive' | 'info' | 'success';
   title?: string;
   children?: React.ReactNode;
 }
 
-export const Alert = React.forwardRef<HTMLDivElement, AlertProps>(({ className, variant = 'info', title, children, ...props }, ref) => {
+export const Alert: React.FC<AlertProps> = ({ variant = 'default', title, children }) => {
   const variantStyles = {
-    success: 'bg-green-50 border-green-200 text-green-800',
-    error: 'bg-red-50 border-red-200 text-red-800',
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+    default: 'bg-gray-50 border-gray-200 text-gray-800',
+    destructive: 'bg-red-50 border-red-200 text-red-800',
     info: 'bg-blue-50 border-blue-200 text-blue-800',
+    success: 'bg-green-50 border-green-200 text-green-800',
   };
 
   return (
-    <div className={cn('p-4 border rounded-lg', variantStyles[variant], className)} ref={ref} {...props}>
+    <div className={cn('p-4 border rounded-lg', variantStyles[variant])}>
       {title && <h4 className="font-semibold mb-1">{title}</h4>}
-      <p className="text-sm">{children}</p>
+      <div className="text-sm">{children}</div>
     </div>
   );
-});
+};
 
 Alert.displayName = 'Alert';
-
-interface LoadingSpinnerProps {
-  size?: 'sm' | 'md' | 'lg';
-  variant?: 'primary' | 'white';
-}
-
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'md', variant = 'primary' }) => {
-  const sizeClasses = {
-    sm: 'w-4 h-4',
-    md: 'w-8 h-8',
-    lg: 'w-12 h-12',
-  };
-
-  const variants = {
-    primary: 'border-blue-300 border-t-blue-600',
-    white: 'border-white/30 border-t-white',
-  };
-
-  return <div className={cn('border-4 rounded-full animate-spin', sizeClasses[size], variants[variant])} />;
-};
-
-interface EmptyStateProps {
-  icon?: React.ReactNode;
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
-}
-
-export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, action }) => (
-  <div className="flex flex-col items-center justify-center py-12 px-4">
-    {icon && <div className="mb-4 text-gray-400 text-4xl">{icon}</div>}
-    <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-    {description && <p className="text-gray-500 mb-6 text-center max-w-sm">{description}</p>}
-    {action && <div>{action}</div>}
-  </div>
-);
-
-interface ModalProps {
-  isOpen: boolean;
-  title: string;
-  onClose: () => void;
-  children?: React.ReactNode;
-  footer?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-}
-
-export const Modal: React.FC<ModalProps> = ({ isOpen, title, onClose, children, footer, size = 'md' }) => {
-  if (!isOpen) return null;
-
-  const sizeClasses = {
-    sm: 'w-full sm:max-w-sm',
-    md: 'w-full sm:max-w-md',
-    lg: 'w-full sm:max-w-lg',
-    xl: 'w-full sm:max-w-xl',
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <Card className={cn('relative shadow-lg', sizeClasses[size])}>
-        <CardHeader className="flex justify-between items-center">
-          <CardTitle>{title}</CardTitle>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            ×
-          </button>
-        </CardHeader>
-        <CardContent>{children}</CardContent>
-        {footer && <CardFooter>{footer}</CardFooter>}
-      </Card>
-    </div>
-  );
-};
