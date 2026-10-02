@@ -1,4 +1,4 @@
-// Database Types - Gerado com base na schema Supabase
+// Database Types - Complete Supabase Schema with All Fields
 export type Database = {
   public: {
     Tables: {
@@ -127,14 +127,31 @@ export type Database = {
           created_by: string | null;
           updated_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['supplies']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Insert: {
+          code: string;
+          name: string;
+          category: string;
+          quantity?: number | null;
+          current_quantity?: number;
+          minimum_quantity?: number | null;
+          min?: number;
+          unit: string;
+          status?: string;
+          description?: string | null;
+          supplier?: string | null;
+          unit_cost?: number | null;
+          location?: string | null;
+          last_purchase_date?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
         Update: Partial<Database['public']['Tables']['supplies']['Insert']>;
       };
       purchases: {
         Row: {
           id: string;
           purchase_number: string;
-          supply_id: string;
+          supply_id?: string;
           description: string | null;
           supplier: string | null;
           quantity: number | null;
@@ -142,7 +159,7 @@ export type Database = {
           total_cost: number | null;
           status: 'solicitacao' | 'aprovacao' | 'cotacao' | 'compra_realizada' | 'recebimento' | 'concluida' | 'cancelada';
           priority: string;
-          solicitant_id: string;
+          solicitant_id?: string;
           department_id: string | null;
           estimated_value: number | null;
           justification: string | null;
@@ -157,7 +174,29 @@ export type Database = {
           created_by: string | null;
           updated_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['purchases']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Insert: {
+          purchase_number: string;
+          supply_id?: string;
+          description?: string | null;
+          supplier?: string | null;
+          quantity?: number | null;
+          unit_cost?: number | null;
+          total_cost?: number | null;
+          status: 'solicitacao' | 'aprovacao' | 'cotacao' | 'compra_realizada' | 'recebimento' | 'concluida' | 'cancelada';
+          priority: string;
+          solicitant_id?: string;
+          department_id?: string | null;
+          estimated_value?: number | null;
+          justification?: string | null;
+          purchase_document_number?: string | null;
+          fiscal_document_url?: string | null;
+          requested_date?: string | null;
+          expected_delivery_date?: string | null;
+          received_date?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
         Update: Partial<Database['public']['Tables']['purchases']['Insert']>;
       };
       equipments: {
@@ -199,7 +238,7 @@ export type Database = {
   };
 };
 
-// Type Exports for Components
+// Type Exports for Components - Matching component expectations
 export type Document = Database['public']['Tables']['documents']['Row'];
 export type Occurrence = Database['public']['Tables']['occurrences']['Row'];
 export type Event = Database['public']['Tables']['events']['Row'];
@@ -207,11 +246,3 @@ export type Supply = Database['public']['Tables']['supplies']['Row'];
 export type Purchase = Database['public']['Tables']['purchases']['Row'];
 export type Equipment = Database['public']['Tables']['equipments']['Row'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
-
-// Type Exports for Inserts/Updates
-export type DocumentInsert = Database['public']['Tables']['documents']['Insert'];
-export type OccurrenceInsert = Database['public']['Tables']['occurrences']['Insert'];
-export type EventInsert = Database['public']['Tables']['events']['Insert'];
-export type SupplyInsert = Database['public']['Tables']['supplies']['Insert'];
-export type PurchaseInsert = Database['public']['Tables']['purchases']['Insert'];
-export type EquipmentInsert = Database['public']['Tables']['equipments']['Insert'];

@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
 
     // Listen to auth changes
-    const subscription = onAuthStateChange((authUser, userProfile) => {
+    const { data } = onAuthStateChange((authUser, userProfile) => {
       setUser(authUser);
       setProfile(userProfile);
       setLoading(false);
@@ -51,9 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Cleanup subscription
     return () => {
-      if (subscription?.subscription) {
-        subscription.subscription.unsubscribe?.();
-      }
+      data?.subscription?.unsubscribe?.();
     };
   }, []);
 
