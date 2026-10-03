@@ -4,9 +4,22 @@ const DOCUMENTS_BUCKET = 'documents';
 const IMAGES_BUCKET = 'images';
 const EVIDENCE_BUCKET = 'evidence';
 
+function createSafeFileName(fileName: string) {
+  const extension = fileName.includes('.') ? `.${fileName.split('.').pop()?.toLowerCase()}` : '';
+  const baseName = fileName
+    .replace(/\.[^.]+$/, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100) || 'arquivo';
+
+  return `${Date.now()}-${crypto.randomUUID()}-${baseName}${extension}`;
+}
+
 // Upload document
 export async function uploadDocument(file: File, folder: string = 'documents') {
-  const fileName = `${Date.now()}-${file.name}`;
+  const fileName = createSafeFileName(file.name);
   const filePath = `${folder}/${fileName}`;
 
   const { data, error } = await supabase.storage
@@ -34,7 +47,7 @@ export async function uploadDocument(file: File, folder: string = 'documents') {
 
 // Upload image
 export async function uploadImage(file: File, folder: string = 'uploads') {
-  const fileName = `${Date.now()}-${file.name}`;
+  const fileName = createSafeFileName(file.name);
   const filePath = `${folder}/${fileName}`;
 
   const { data, error } = await supabase.storage
@@ -62,7 +75,7 @@ export async function uploadImage(file: File, folder: string = 'uploads') {
 
 // Upload evidence (for occurrences)
 export async function uploadEvidence(file: File, occurrenceId: string) {
-  const fileName = `${Date.now()}-${file.name}`;
+  const fileName = createSafeFileName(file.name);
   const filePath = `occurrences/${occurrenceId}/${fileName}`;
 
   const { data, error } = await supabase.storage
