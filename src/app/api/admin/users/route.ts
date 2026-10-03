@@ -47,6 +47,47 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const auth = await authorize(request);
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+    const { email, password, fullName, role } = await request.json();
+    const validRoles = ['administrador', 'administracao', 'recepcao', 'manutencao', 'limpeza', 'visitante'];
+    if (!email || !fullName || !password || !validRoles.includes(role)) {
+      return NextResponse.json({ error: 'Preencha nome, e-mail, senha e perfil' }, { status: 400 });
+    }
+    if (password.length < 8) return NextResponse.json({ error: 'A senha deve ter pelo menos 8 caracteres' }, { status: 400 });
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const { data: created, error: createError } = await auth.supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: String(fullName).trim() },
+    });
+    if (createError || !created.user) {
+      return NextResponse.json({ error: createError?.message || 'Não foi possível criar o usuário' }, { status: createError?.status || 400 });
+    }
+
+    const { data: existing } = await auth.supabase.from('profiles').select('id').ilike('email', normalizedEmail).maybeSingle();
+    const profileData = { user_id: created.user.id, email: normalizedEmail, full_name: String(fullName).trim(), role, is_active: true };
+    const profileResult = existing
+      ? await auth.supabase.from('profiles').update(profileData).eq('id', existing.id)
+      : await auth.supabase.from('profiles').insert(profileData);
+
+    if (profileResult.error) {
+      await auth.supabase.auth.admin.deleteUser(created.user.id);
+      throw profileResult.error;
+    }
+
+    return NextResponse.json({ success: true }, { status: 201 });
+  } catch (error) {
+    console.error('Erro ao criar usuário:', error);
+    return NextResponse.json({ error: 'Não foi possível criar o usuário' }, { status: 500 });
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await authorize(request);
