@@ -162,7 +162,7 @@ export default function InsumosPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador', 'administracao', 'manutencao', 'limpeza']}>
       <MainLayout
         userName={profile?.full_name || 'Usuário'}
         userRole={profile?.role || 'visitante'}

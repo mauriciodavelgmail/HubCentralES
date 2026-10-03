@@ -164,7 +164,7 @@ export default function DocumentosPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador', 'administracao']}>
       <MainLayout
         userName={profile?.full_name || 'Usuário'}
         userRole={profile?.role || 'visitante'}

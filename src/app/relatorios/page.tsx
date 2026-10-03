@@ -15,7 +15,7 @@ export default function RelatoriosPage() {
   ];
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador', 'administracao']}>
       <MainLayout title="Relatórios e Indicadores" subtitle="Análise de dados e KPIs">
       <div className="space-y-6">
         <div className="flex gap-4 justify-between">

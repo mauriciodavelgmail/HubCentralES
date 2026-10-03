@@ -178,7 +178,7 @@ export default function AgendaPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador', 'administracao', 'recepcao', 'visitante']}>
       <MainLayout
         userName={profile?.full_name || 'Usuário'}
         userRole={profile?.role || 'visitante'}

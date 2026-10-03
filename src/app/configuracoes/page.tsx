@@ -98,7 +98,7 @@ export default function ConfiguracoesPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador']}>
       <MainLayout title="Configurações" subtitle="Administração do sistema">
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-4">

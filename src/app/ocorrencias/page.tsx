@@ -149,7 +149,7 @@ export default function OcorrenciasPage() {
   });
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador', 'administracao', 'recepcao', 'manutencao', 'limpeza']}>
       <MainLayout>
         <div className="space-y-6">
           {/* Header */}

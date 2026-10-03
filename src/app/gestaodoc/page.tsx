@@ -4,9 +4,11 @@ import React from 'react';
 import { MainLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '@/components/ui';
 import { FileText, Plus, Eye } from 'lucide-react';
+import { ProtectedRoute } from '@/lib/auth/protected-route';
 
 export default function GestaoDependPage() {
   return (
+    <ProtectedRoute allowedRoles={['administrador', 'administracao']}>
     <MainLayout title="Gestão Documental" subtitle="Administração de documentos do sistema">
       <div className="space-y-6">
         <div className="flex gap-4 justify-between">
@@ -52,5 +54,6 @@ export default function GestaoDependPage() {
         </div>
       </div>
     </MainLayout>
+    </ProtectedRoute>
   );
 }

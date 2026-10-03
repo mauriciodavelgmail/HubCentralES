@@ -178,7 +178,7 @@ export default function ComprasPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador', 'administracao']}>
       <MainLayout
         userName={profile?.full_name || 'Usuário'}
         userRole={profile?.role || 'visitante'}

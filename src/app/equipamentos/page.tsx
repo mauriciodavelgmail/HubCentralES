@@ -177,7 +177,7 @@ export default function EquipamentosPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['administrador', 'administracao', 'manutencao']}>
       <MainLayout
         userName={profile?.full_name || 'Usuário'}
         userRole={profile?.role || 'visitante'}

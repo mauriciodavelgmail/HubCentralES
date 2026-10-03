@@ -4,9 +4,11 @@ import React from 'react';
 import { MainLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '@/components/ui';
 import { Plus } from 'lucide-react';
+import { ProtectedRoute } from '@/lib/auth/protected-route';
 
 export default function ContratosPage() {
   return (
+    <ProtectedRoute allowedRoles={['administrador', 'administracao']}>
     <MainLayout title="Gestão de Contratos" subtitle="Administração de contratos e fornecedores">
       <div className="space-y-6">
         <div className="flex gap-4 justify-between">
@@ -47,5 +49,6 @@ export default function ContratosPage() {
         </div>
       </div>
     </MainLayout>
+    </ProtectedRoute>
   );
 }

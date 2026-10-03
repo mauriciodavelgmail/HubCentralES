@@ -4,15 +4,34 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './context';
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+export type UserRole =
+  | 'administrador'
+  | 'administracao'
+  | 'recepcao'
+  | 'manutencao'
+  | 'limpeza'
+  | 'visitante';
+
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: UserRole[];
+}
+
+export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const { isAuthenticated, loading, profile } = useAuth();
   const router = useRouter();
+  const isAuthorized = !allowedRoles || (!!profile && allowedRoles.includes(profile.role));
 
   React.useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push('/login');
+      router.replace('/login');
+      return;
     }
-  }, [isAuthenticated, loading, router]);
+
+    if (!loading && isAuthenticated && profile && !isAuthorized) {
+      router.replace(profile.role === 'visitante' ? '/agenda' : '/dashboard');
+    }
+  }, [isAuthenticated, isAuthorized, loading, profile, router]);
 
   if (loading) {
     return (
@@ -25,7 +44,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !profile || !isAuthorized) {
     return null;
   }
 
