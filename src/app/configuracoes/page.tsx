@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/lib/auth/protected-route';
 import { useAuth } from '@/lib/auth/context';
 import { supabase } from '@/lib/supabase/auth';
 import { USER_ROLES } from '@/constants';
-import { KeyRound, Plus, RefreshCw, ShieldAlert, UserCog } from 'lucide-react';
+import { KeyRound, Pencil, Plus, RefreshCw, ShieldAlert, UserCog } from 'lucide-react';
 import type { Database } from '@/lib/supabase/database.types';
 
 type Role = Database['public']['Tables']['profiles']['Row']['role'];
@@ -22,6 +22,8 @@ export default function ConfiguracoesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newUser, setNewUser] = useState({ fullName: '', email: '', password: '', role: 'visitante' as Role });
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [editForm, setEditForm] = useState({ fullName: '', email: '', role: 'visitante' as Role });
 
   const apiRequest = useCallback(async (options?: RequestInit) => {
     const { data } = await supabase.auth.getSession();
@@ -50,15 +52,17 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  const updateUser = async (profileId: string, changes: { role?: Role; isActive?: boolean; password?: string }) => {
+  const updateUser = async (profileId: string, changes: { role?: Role; isActive?: boolean; password?: string; email?: string; fullName?: string }) => {
     try {
       setSavingId(profileId);
       setFeedback(null);
       await apiRequest({ method: 'PATCH', body: JSON.stringify({ profileId, ...changes }) });
       setFeedback({ type: 'success', text: changes.password ? 'Senha redefinida com sucesso.' : 'Usuário atualizado com sucesso.' });
       if (!changes.password) await loadUsers();
+      return true;
     } catch (error) {
       setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao atualizar usuário' });
+      return false;
     } finally { setSavingId(null); }
   };
 
@@ -80,6 +84,17 @@ export default function ConfiguracoesPage() {
     } catch (error) {
       setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao criar usuário' });
     } finally { setCreating(false); }
+  };
+
+  const openEdit = (managedUser: ManagedUser) => {
+    setEditingUser(managedUser);
+    setEditForm({ fullName: managedUser.full_name || '', email: managedUser.email, role: managedUser.role });
+  };
+
+  const saveEdit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingUser) return;
+    if (await updateUser(editingUser.id, editForm)) setEditingUser(null);
   };
 
   return (
@@ -110,6 +125,7 @@ export default function ConfiguracoesPage() {
                         <td className="px-3 py-3"><select className="border rounded-lg px-2 py-2 bg-white" value={managedUser.role} disabled={savingId === managedUser.id} onChange={(event) => updateUser(managedUser.id, { role: event.target.value as Role })}>{USER_ROLES.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}</select></td>
                         <td className="px-3 py-3"><Badge variant={managedUser.is_active ? 'success' : 'secondary'}>{managedUser.is_active ? 'Ativo' : 'Inativo'}</Badge></td>
                         <td className="px-3 py-3"><div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" icon={<Pencil size={15} />} disabled={savingId === managedUser.id} onClick={() => openEdit(managedUser)}>Editar</Button>
                           <Button variant="outline" size="sm" icon={<KeyRound size={15} />}
                             title={managedUser.user_id === user?.id ? 'Use a recuperação de senha para alterar sua própria senha' : undefined}
                             disabled={!managedUser.user_id || managedUser.user_id === user?.id || savingId === managedUser.id}
@@ -137,6 +153,21 @@ export default function ConfiguracoesPage() {
                 </select>
               </div>
               <DialogFooter><Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button><Button type="submit" loading={creating}>Criar usuário</Button></DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Editar usuário</DialogTitle></DialogHeader>
+            <form onSubmit={saveEdit} className="space-y-4">
+              <Input label="Nome completo" value={editForm.fullName} onChange={(event) => setEditForm({ ...editForm, fullName: event.target.value })} required />
+              <Input label="E-mail" type="email" value={editForm.email} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} required />
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg" value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value as Role })}>
+                  {USER_ROLES.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                </select>
+              </div>
+              <DialogFooter><Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Cancelar</Button><Button type="submit" loading={savingId === editingUser?.id}>Salvar alterações</Button></DialogFooter>
             </form>
           </DialogContent>
         </Dialog>

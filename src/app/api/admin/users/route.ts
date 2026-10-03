@@ -92,10 +92,10 @@ export async function PATCH(request: NextRequest) {
   try {
     const auth = await authorize(request);
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
-    const { profileId, role, isActive, password } = await request.json();
+    const { profileId, role, isActive, password, email, fullName } = await request.json();
     if (!profileId) return NextResponse.json({ error: 'Usuário não informado' }, { status: 400 });
 
-    const { data: target } = await auth.supabase.from('profiles').select('user_id').eq('id', profileId).single();
+    const { data: target } = await auth.supabase.from('profiles').select('user_id, email, full_name').eq('id', profileId).single();
     if (!target) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
 
     if (role !== undefined || isActive !== undefined) {
@@ -103,6 +103,22 @@ export async function PATCH(request: NextRequest) {
       if (role !== undefined) changes.role = role;
       if (isActive !== undefined) changes.is_active = isActive;
       const { error } = await auth.supabase.from('profiles').update(changes).eq('id', profileId);
+      if (error) throw error;
+    }
+
+    if (email !== undefined || fullName !== undefined) {
+      const normalizedEmail = email === undefined ? target.email : String(email).trim().toLowerCase();
+      const normalizedName = fullName === undefined ? target.full_name : String(fullName).trim();
+      if (!normalizedEmail || !normalizedName) return NextResponse.json({ error: 'Nome e e-mail são obrigatórios' }, { status: 400 });
+      if (target.user_id) {
+        const { error } = await auth.supabase.auth.admin.updateUserById(target.user_id, {
+          email: normalizedEmail,
+          email_confirm: true,
+          user_metadata: { full_name: normalizedName },
+        });
+        if (error) return NextResponse.json({ error: error.message }, { status: error.status || 400 });
+      }
+      const { error } = await auth.supabase.from('profiles').update({ email: normalizedEmail, full_name: normalizedName }).eq('id', profileId);
       if (error) throw error;
     }
 
