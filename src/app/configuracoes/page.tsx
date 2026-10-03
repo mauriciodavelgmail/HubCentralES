@@ -53,7 +53,7 @@ export default function ConfiguracoesPage() {
       setFeedback(null);
       await apiRequest({ method: 'PATCH', body: JSON.stringify({ profileId, ...changes }) });
       setFeedback({ type: 'success', text: changes.password ? 'Senha redefinida com sucesso.' : 'Usuário atualizado com sucesso.' });
-      await loadUsers();
+      if (!changes.password) await loadUsers();
     } catch (error) {
       setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao atualizar usuário' });
     } finally { setSavingId(null); }
@@ -89,7 +89,10 @@ export default function ConfiguracoesPage() {
                         <td className="px-3 py-3"><select className="border rounded-lg px-2 py-2 bg-white" value={managedUser.role} disabled={savingId === managedUser.id} onChange={(event) => updateUser(managedUser.id, { role: event.target.value as Role })}>{USER_ROLES.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}</select></td>
                         <td className="px-3 py-3"><Badge variant={managedUser.is_active ? 'success' : 'secondary'}>{managedUser.is_active ? 'Ativo' : 'Inativo'}</Badge></td>
                         <td className="px-3 py-3"><div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" icon={<KeyRound size={15} />} disabled={!managedUser.user_id || savingId === managedUser.id} onClick={() => resetPassword(managedUser)}>Redefinir senha</Button>
+                          <Button variant="outline" size="sm" icon={<KeyRound size={15} />}
+                            title={managedUser.user_id === user?.id ? 'Use a recuperação de senha para alterar sua própria senha' : undefined}
+                            disabled={!managedUser.user_id || managedUser.user_id === user?.id || savingId === managedUser.id}
+                            onClick={() => resetPassword(managedUser)}>Redefinir senha</Button>
                           <Button variant={managedUser.is_active ? 'danger' : 'secondary'} size="sm" disabled={managedUser.user_id === user?.id || savingId === managedUser.id} onClick={() => updateUser(managedUser.id, { isActive: !managedUser.is_active })}>{managedUser.is_active ? 'Desativar' : 'Ativar'}</Button>
                         </div></td>
                       </tr>)}</tbody>

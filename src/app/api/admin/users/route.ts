@@ -68,8 +68,18 @@ export async function PATCH(request: NextRequest) {
     if (password !== undefined) {
       if (password.length < 8) return NextResponse.json({ error: 'A senha deve ter pelo menos 8 caracteres' }, { status: 400 });
       if (!target.user_id) return NextResponse.json({ error: 'Perfil não vinculado ao Authentication' }, { status: 400 });
+      if (target.user_id === auth.user.id) {
+        return NextResponse.json({ error: 'Use a recuperação de senha para alterar a senha do próprio administrador' }, { status: 400 });
+      }
+      const { data: authUser, error: lookupError } = await auth.supabase.auth.admin.getUserById(target.user_id);
+      if (lookupError || !authUser.user) {
+        return NextResponse.json({ error: 'O perfil não corresponde a um usuário válido no Authentication' }, { status: 404 });
+      }
       const { error } = await auth.supabase.auth.admin.updateUserById(target.user_id, { password });
-      if (error) throw error;
+      if (error) {
+        console.error('Erro do Supabase ao redefinir senha:', error);
+        return NextResponse.json({ error: error.message || 'O Supabase recusou a nova senha' }, { status: error.status || 400 });
+      }
     }
     return NextResponse.json({ success: true });
   } catch (error) {
