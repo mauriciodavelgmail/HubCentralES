@@ -39,9 +39,10 @@ export async function getDocument(id: string) {
 }
 
 export async function createDocument(document: Omit<Document, 'id' | 'created_at' | 'updated_at'>) {
+  const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from('documents')
-    .insert([document])
+    .insert([{ ...document, created_by: user?.id }])
     .select()
     .single();
 

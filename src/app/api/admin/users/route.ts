@@ -11,19 +11,32 @@ function getAdminClient() {
 
 async function authorize(request: NextRequest) {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
+  if (!token) return { error: 'Sessão não informada', status: 401 } as const;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) throw new Error('Configuração pública do Supabase ausente');
+
+  // Validate the user's JWT with the public Auth client. The service-role
+  // client is reserved for the privileged database/admin operations below.
+  const authClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: { user }, error: userError } = await authClient.auth.getUser(token);
+  if (userError || !user) return { error: 'Sessão inválida ou expirada', status: 401 } as const;
+
   const supabase = getAdminClient();
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  const { data: profile } = await supabase.from('profiles').select('role, is_active').eq('user_id', user.id).single();
-  if (!profile || profile.role !== 'administrador' || !profile.is_active) return null;
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles').select('role, is_active').eq('user_id', user.id).maybeSingle();
+  if (profileError) throw profileError;
+  if (!profile) return { error: 'Usuário sem perfil vinculado. Verifique profiles.user_id.', status: 403 } as const;
+  if (!profile.is_active) return { error: 'Este usuário está inativo', status: 403 } as const;
+  if (profile.role !== 'administrador') return { error: 'Apenas administradores podem gerenciar usuários', status: 403 } as const;
   return { supabase, user };
 }
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await authorize(request);
-    if (!auth) return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const { data, error } = await auth.supabase.from('profiles')
       .select('id, user_id, email, full_name, role, is_active, created_at').order('full_name');
     if (error) throw error;
@@ -37,7 +50,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await authorize(request);
-    if (!auth) return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const { profileId, role, isActive, password } = await request.json();
     if (!profileId) return NextResponse.json({ error: 'Usuário não informado' }, { status: 400 });
 

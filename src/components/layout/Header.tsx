@@ -10,6 +10,8 @@ interface HeaderProps {
   showSearch?: boolean;
   onSearch?: (query: string) => void;
   notificationsCount?: number;
+  notifications?: Array<{ id: string; title: string; message: string; is_read: boolean; action_url?: string | null }>;
+  onNotificationClick?: (id: string, actionUrl?: string | null) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +20,8 @@ export const Header: React.FC<HeaderProps> = ({
   showSearch = true,
   onSearch,
   notificationsCount = 0,
+  notifications = [],
+  onNotificationClick,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -89,9 +93,15 @@ export const Header: React.FC<HeaderProps> = ({
                     <h3 className="font-semibold text-gray-900">Notificações</h3>
                   </div>
                   <div className="max-h-96 overflow-y-auto">
-                    <div className="p-4 text-center text-gray-500 text-sm">
-                      Nenhuma notificação pendente
-                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500 text-sm">Nenhuma notificação pendente</div>
+                    ) : notifications.map((notification) => (
+                      <button key={notification.id} onClick={() => onNotificationClick?.(notification.id, notification.action_url)}
+                        className={cn('w-full p-4 text-left border-b last:border-0 hover:bg-gray-50', !notification.is_read && 'bg-blue-50')}>
+                        <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                        <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
