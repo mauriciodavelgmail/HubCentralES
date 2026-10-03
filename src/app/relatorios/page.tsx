@@ -5,6 +5,7 @@ import { MainLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '@/components/ui';
 import { Download, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ProtectedRoute } from '@/lib/auth/protected-route';
 
 export default function RelatoriosPage() {
   const data = [
@@ -14,7 +15,8 @@ export default function RelatoriosPage() {
   ];
 
   return (
-    <MainLayout title="Relatórios e Indicadores" subtitle="Análise de dados e KPIs">
+    <ProtectedRoute>
+      <MainLayout title="Relatórios e Indicadores" subtitle="Análise de dados e KPIs">
       <div className="space-y-6">
         <div className="flex gap-4 justify-between">
           <div>
@@ -62,6 +64,7 @@ export default function RelatoriosPage() {
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+      </MainLayout>
+    </ProtectedRoute>
   );
 }

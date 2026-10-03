@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChange, getCurrentUser, getUserProfile, AuthUser, UserProfile } from '../supabase/auth';
+import { onAuthStateChange, getCurrentUser, getUserProfile, signOut, AuthUser, UserProfile } from '../supabase/auth';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   error: string | null;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,12 +56,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const logout = async () => {
+    await signOut();
+    setUser(null);
+    setProfile(null);
+    setError(null);
+  };
+
   const value: AuthContextType = {
     user,
     profile,
     loading,
     isAuthenticated: !!user,
     error,
+    logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

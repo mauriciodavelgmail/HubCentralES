@@ -3,6 +3,7 @@
 import React from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { useAuth } from '@/lib/auth/context';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -17,18 +18,22 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({
   children,
-  userRole = 'visitante',
-  userName = 'Usuário',
+  userRole,
+  userName,
   title,
   subtitle,
   showSearch = true,
   onSearch,
   notificationsCount = 0,
 }) => {
+  const { user, profile } = useAuth();
+  const resolvedUserRole = userRole ?? profile?.role ?? 'visitante';
+  const resolvedUserName = userName ?? profile?.full_name ?? user?.email?.split('@')[0] ?? 'Usuário';
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <Sidebar userRole={userRole} userName={userName} />
+      <Sidebar userRole={resolvedUserRole} userName={resolvedUserName} />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">

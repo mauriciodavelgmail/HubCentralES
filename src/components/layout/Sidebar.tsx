@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { SIDEBAR_MENU } from '@/constants';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth/context';
 
 interface SidebarProps {
   userRole?: string;
@@ -30,11 +31,17 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ userRole = 'visitante', userName = 'Usuário' }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const { logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace('/login');
+      router.refresh();
+    } catch (error) {
+      console.error('Erro ao sair:', error);
+    }
   };
 
   const getIconComponent = (iconName: string) => {
