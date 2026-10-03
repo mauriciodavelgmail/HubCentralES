@@ -122,10 +122,15 @@ export default function DashboardPage() {
       return;
     }
 
+    if (profile?.role === 'visitante') {
+      router.replace('/agenda');
+      return;
+    }
+
     // Load metrics from database
     setMetrics(MOCK_METRICS);
     setLoading(false);
-  }, [user, authLoading, router]);
+  }, [user, profile, authLoading, router]);
 
   if (loading || !metrics || authLoading) {
     return (

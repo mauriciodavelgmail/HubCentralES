@@ -87,12 +87,9 @@ export type Database = {
           requester_id: string;
           status: 'cancelada' | 'aguardando_aprovacao' | 'confirmada' | 'realizada';
           start_date: string;
-          end_date: string;
           start_time: string;
           end_time: string;
           capacity: number | null;
-          expected_attendees: number | null;
-          image_url: string | null;
           attendance_list_created: boolean;
           approved_by: string | null;
           approved_at: string | null;

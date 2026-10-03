@@ -131,7 +131,7 @@ export const SIDEBAR_MENU = [
     icon: 'LayoutDashboard',
     label: 'Dashboard',
     href: '/dashboard',
-    roles: ['administrador', 'administracao', 'recepcao', 'manutencao', 'limpeza', 'visitante'],
+    roles: ['administrador', 'administracao', 'recepcao', 'manutencao', 'limpeza'],
   },
   {
     icon: 'AlertCircle',

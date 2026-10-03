@@ -10,7 +10,7 @@ import { signIn, signUp } from '@/lib/supabase/auth';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, profile, isAuthenticated, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -19,10 +19,10 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
 
   useEffect(() => {
-    if (isAuthenticated && user && !loading) {
-      router.push('/dashboard');
+    if (isAuthenticated && user && profile && !loading) {
+      router.replace(profile.role === 'visitante' ? '/agenda' : '/dashboard');
     }
-  }, [isAuthenticated, user, loading, router]);
+  }, [isAuthenticated, user, profile, loading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,9 +36,7 @@ export default function LoginPage() {
         await signIn(email, password);
       }
 
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 1000);
+      // The auth context redirects after loading the linked profile.
     } catch (err: any) {
       setError(err.message || 'Erro ao processar solicitação');
     } finally {

@@ -6,16 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Butto
 import { ProtectedRoute } from '@/lib/auth/protected-route';
 import { useAuth } from '@/lib/auth/context';
 import { getEvents, createEvent, updateEvent, deleteEvent, Event, getEventsByStatus } from '@/lib/supabase/events';
-import { Search, Plus, Trash2, Edit, AlertCircle, CheckCircle, Clock, Calendar, Upload } from 'lucide-react';
-import { uploadImage } from '@/lib/supabase/storage';
+import { Search, Plus, Trash2, Edit, AlertCircle, CheckCircle, Clock, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { supabase } from '@/lib/supabase/auth';
 
-const SPACES = ['auditorio', 'sala_1', 'sala_2', 'multiuso', 'lab_maker', 'area_externos'];
-const EVENT_TYPES = ['reuniao', 'workshop', 'palestra', 'treinamento', 'conferencia', 'encontro', 'outro'];
+const EVENT_TYPES = ['reuniao', 'workshop', 'palestra', 'encontro', 'outros'];
 const STATUSES = ['aguardando_aprovacao', 'confirmada', 'realizada', 'cancelada'];
 
 export default function AgendaPage() {
   const { user, profile } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
+  const [spaces, setSpaces] = useState<Array<{ id: string; name: string }>>([]);
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,8 +24,6 @@ export default function AgendaPage() {
   const [filterSpace, setFilterSpace] = useState('');
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -34,15 +33,15 @@ export default function AgendaPage() {
     space_id: '',
     start_date: '',
     start_time: '',
-    end_date: '',
     end_time: '',
     capacity: '',
-    expected_attendees: '',
   });
 
   // Load events
   useEffect(() => {
     loadEvents();
+    supabase.from('spaces').select('id, name').eq('status', 'disponivel').order('name')
+      .then(({ data }) => setSpaces(data || []));
   }, []);
 
   const loadEvents = async () => {
@@ -69,11 +68,9 @@ export default function AgendaPage() {
         status: event.status,
         space_id: event.space_id || '',
         start_date: event.start_date ? event.start_date.split('T')[0] : '',
-        start_time: event.start_date ? event.start_date.split('T')[1]?.substring(0, 5) || '' : '',
-        end_date: event.end_date ? event.end_date.split('T')[0] : '',
-        end_time: event.end_date ? event.end_date.split('T')[1]?.substring(0, 5) || '' : '',
+        start_time: event.start_time?.substring(0, 5) || '',
+        end_time: event.end_time?.substring(0, 5) || '',
         capacity: event.capacity?.toString() || '',
-        expected_attendees: event.expected_attendees?.toString() || '',
       });
     } else {
       setEditingId(null);
@@ -85,10 +82,8 @@ export default function AgendaPage() {
         space_id: '',
         start_date: '',
         start_time: '',
-        end_date: '',
         end_time: '',
         capacity: '',
-        expected_attendees: '',
       });
     }
     setShowDialog(true);
@@ -99,19 +94,14 @@ export default function AgendaPage() {
     try {
       let submitData: Partial<Event> = {
         ...formData,
-        start_date: formData.start_date && formData.start_time ? `${formData.start_date}T${formData.start_time}:00` : '',
-        end_date: formData.end_date && formData.end_time ? `${formData.end_date}T${formData.end_time}:00` : '',
+        start_date: formData.start_date,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
-        expected_attendees: formData.expected_attendees ? parseInt(formData.expected_attendees) : null,
         status: formData.status as Event['status'],
+        requester_id: profile?.id,
+        created_by: user?.id,
       };
-
-      if (selectedFile) {
-        setUploading(true);
-        const uploadResult = await uploadImage(selectedFile, 'events');
-        submitData = { ...submitData, image_url: uploadResult.url };
-        setUploading(false);
-      }
 
       if (editingId) {
         await updateEvent(editingId, submitData);
@@ -120,11 +110,9 @@ export default function AgendaPage() {
       }
       await loadEvents();
       setShowDialog(false);
-      setSelectedFile(null);
       setError('');
     } catch (err: any) {
       setError('Erro ao salvar evento: ' + err.message);
-      setUploading(false);
     }
   };
 
@@ -146,6 +134,20 @@ export default function AgendaPage() {
     const matchesSpace = !filterSpace || evt.space_id === filterSpace;
     return matchesSearch && matchesStatus && matchesSpace;
   });
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leadingDays = new Date(year, month, 1).getDay();
+  const calendarDays = Array.from({ length: leadingDays + daysInMonth }, (_, index) =>
+    index < leadingDays ? null : index - leadingDays + 1
+  );
+  const dateKey = (day: number) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const eventsForDate = (date: string) => events.filter((event) => event.start_date?.split('T')[0] === date && event.status !== 'cancelada');
+  const openDate = (date: string) => {
+    handleOpenDialog();
+    setFormData((current) => ({ ...current, start_date: date, status: 'aguardando_aprovacao' }));
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -185,7 +187,7 @@ export default function AgendaPage() {
       >
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {profile?.role !== 'visitante' && <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2 flex-1">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -213,8 +215,8 @@ export default function AgendaPage() {
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todos Espaços</option>
-                {SPACES.map(space => (
-                  <option key={space} value={space}>{space}</option>
+                {spaces.map(space => (
+                  <option key={space.id} value={space.id}>{space.name}</option>
                 ))}
               </select>
             </div>
@@ -225,7 +227,7 @@ export default function AgendaPage() {
               <Plus size={20} />
               Novo Evento
             </Button>
-          </div>
+          </div>}
 
           {/* Error */}
           {error && (
@@ -235,8 +237,40 @@ export default function AgendaPage() {
             </div>
           )}
 
-          {/* Events Table */}
-          {loading ? (
+          {/* Visitor calendar / administrative event list */}
+          {profile?.role === 'visitante' ? (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date(year, month - 1, 1))}><ChevronLeft size={20} /></Button>
+                <CardTitle className="capitalize">{currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(new Date(year, month + 1, 1))}><ChevronRight size={20} /></Button>
+              </CardHeader>
+              <CardContent>
+                {loading ? <div className="flex justify-center py-12"><LoadingSpinner /></div> : <>
+                  <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-semibold text-gray-500">
+                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((name) => <div key={name}>{name}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7 gap-2">
+                    {calendarDays.map((day, index) => {
+                      if (!day) return <div key={`empty-${index}`} />;
+                      const date = dateKey(day);
+                      const dayEvents = eventsForDate(date);
+                      const isPast = date < new Date().toLocaleDateString('en-CA');
+                      const unavailable = isPast || dayEvents.length > 0;
+                      return <button key={date} type="button" disabled={unavailable} onClick={() => openDate(date)}
+                        className={`min-h-28 rounded-lg border p-2 text-left transition ${unavailable ? 'bg-red-50 border-red-200 cursor-not-allowed' : 'bg-green-50 border-green-200 hover:bg-green-100'}`}>
+                        <span className="font-bold text-gray-800">{day}</span>
+                        <p className={`text-xs mt-1 font-medium ${unavailable ? 'text-red-700' : 'text-green-700'}`}>{isPast ? 'Indisponível' : unavailable ? 'Indisponível' : 'Disponível'}</p>
+                        {dayEvents.map((event) => <div key={event.id} className="mt-1 text-xs text-red-800">
+                          <p className="font-semibold truncate">{event.title}</p><p>{event.start_time?.substring(0, 5)}–{event.end_time?.substring(0, 5)}</p>
+                        </div>)}
+                      </button>;
+                    })}
+                  </div>
+                </>}
+              </CardContent>
+            </Card>
+          ) : loading ? (
             <div className="flex items-center justify-center min-h-96">
               <LoadingSpinner size="lg" />
             </div>
@@ -351,39 +385,6 @@ export default function AgendaPage() {
                   />
                 </div>
 
-                {/* Image Upload */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Imagem do Evento</label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition">
-                        <Upload size={18} className="text-gray-400" />
-                        <span className="text-sm text-gray-600">
-                          {selectedFile ? selectedFile.name : 'Selecionar imagem'}
-                        </span>
-                        <input
-                          type="file"
-                          hidden
-                          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                          accept="image/*"
-                          disabled={uploading}
-                        />
-                      </label>
-                    </div>
-                    {selectedFile && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedFile(null)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        ✕
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
                 {/* Type, Status, Space */}
                 <div className="grid grid-cols-3 gap-4">
                   <div>
@@ -398,9 +399,10 @@ export default function AgendaPage() {
                       ))}
                     </select>
                   </div>
-                  <div>
+                  {profile?.role !== 'visitante' && <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
                     <select
+                      required
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -409,17 +411,18 @@ export default function AgendaPage() {
                         <option key={status} value={status}>{status}</option>
                       ))}
                     </select>
-                  </div>
+                  </div>}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Espaço</label>
                     <select
+                      required
                       value={formData.space_id}
                       onChange={(e) => setFormData({ ...formData, space_id: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Selecionar...</option>
-                      {SPACES.map(space => (
-                        <option key={space} value={space}>{space}</option>
+                      {spaces.map(space => (
+                        <option key={space.id} value={space.id}>{space.name}</option>
                       ))}
                     </select>
                   </div>
@@ -444,27 +447,20 @@ export default function AgendaPage() {
                   </div>
                 </div>
 
-                {/* End Dates */}
+                {/* End time */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Data Fim</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <input
-                      type="date"
-                      value={formData.end_date}
-                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Horário de término</label>
                     <input
                       type="time"
+                      required
                       value={formData.end_time}
                       onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
-                  </div>
                 </div>
 
                 {/* Capacity */}
-                <div className="grid grid-cols-2 gap-4">
+                <div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Capacidade</label>
                     <input
@@ -474,23 +470,14 @@ export default function AgendaPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Participantes Esperados</label>
-                    <input
-                      type="number"
-                      value={formData.expected_attendees}
-                      onChange={(e) => setFormData({ ...formData, expected_attendees: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
                 </div>
 
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowDialog(false)} disabled={uploading}>
+                  <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={uploading}>
-                    {uploading ? 'Enviando...' : (editingId ? 'Atualizar' : 'Criar')} Evento
+                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700">
+                    {(editingId ? 'Atualizar' : 'Criar')} Evento
                   </Button>
                 </DialogFooter>
               </form>
