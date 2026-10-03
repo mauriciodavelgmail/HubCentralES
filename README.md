@@ -4,6 +4,8 @@
 
 **HubCentral ES+** é uma plataforma web moderna, 100% responsiva e pronta para demonstração. Ela centraliza a gestão operacional, documental e administrativa do HUB ES+, resolvendo descentralização de dados, retrabalho, perda de rastreabilidade e falhas de comunicação.
 
+> O desenvolvimento do escopo completo está em andamento. Consulte [a auditoria funcional](docs/AUDITORIA-ESCOPO.md) para ver recursos concluídos, parciais e pendentes.
+
 ## 🎯 Problema Resolvido
 
 O HUB ES+ enfrentava:
@@ -70,15 +72,13 @@ npm run dev
 ## 🔐 Configuração Supabase
 
 1. Criar projeto em supabase.com
-2. Executar schema: `supabase/migrations/001_initial_schema.sql`
-3. Seed data: `supabase/migrations/002_seed_data.sql`
-4. Criar storage buckets: documents, occurrences, events
+2. Executar, na ordem, todos os arquivos de `supabase/migrations/001_*.sql` até o arquivo de maior numeração.
+3. O arquivo `002_seed_data.sql` contém os dados iniciais de demonstração.
+4. A migration `003_storage_buckets.sql` cria e configura os buckets usados pela aplicação.
 
 ## 👥 Usuários de Demo
 
-Use qualquer email/senha para testar. Sistema aceita ambos.
-
-Sugestões: admin@hub.es, visitante@hub.es
+As contas são criadas pelo Administrador em **Configurações > Usuários**. Nenhuma senha real é versionada no repositório. Após configurar o ambiente, crie contas específicas para cada perfil necessário à demonstração.
 
 ## 🎬 Roteiro de Demonstração
 
