@@ -1,89 +1,106 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { MainLayout } from '@/components/layout';
-import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '@/components/ui';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, LoadingSpinner } from '@/components/ui';
+import { ProtectedRoute } from '@/lib/auth/protected-route';
+import { useAuth } from '@/lib/auth/context';
+import { supabase } from '@/lib/supabase/auth';
+import { USER_ROLES } from '@/constants';
+import { KeyRound, RefreshCw, ShieldAlert, UserCog } from 'lucide-react';
+import type { Database } from '@/lib/supabase/database.types';
 
-export default function ConfiguracosPage() {
+type Role = Database['public']['Tables']['profiles']['Row']['role'];
+type ManagedUser = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'user_id' | 'email' | 'full_name' | 'role' | 'is_active'>;
+
+export default function ConfiguracoesPage() {
+  const { user, profile } = useAuth();
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
+  const apiRequest = useCallback(async (options?: RequestInit) => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error('Sessão expirada. Entre novamente.');
+    const response = await fetch('/api/admin/users', {
+      ...options,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options?.headers },
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Falha na operação');
+    return result;
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    if (profile?.role !== 'administrador') { setLoading(false); return; }
+    try {
+      setLoading(true);
+      setFeedback(null);
+      const result = await apiRequest();
+      setUsers(result.users);
+    } catch (error) {
+      setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao carregar usuários' });
+    } finally { setLoading(false); }
+  }, [apiRequest, profile?.role]);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  const updateUser = async (profileId: string, changes: { role?: Role; isActive?: boolean; password?: string }) => {
+    try {
+      setSavingId(profileId);
+      setFeedback(null);
+      await apiRequest({ method: 'PATCH', body: JSON.stringify({ profileId, ...changes }) });
+      setFeedback({ type: 'success', text: changes.password ? 'Senha redefinida com sucesso.' : 'Usuário atualizado com sucesso.' });
+      await loadUsers();
+    } catch (error) {
+      setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao atualizar usuário' });
+    } finally { setSavingId(null); }
+  };
+
+  const resetPassword = (managedUser: ManagedUser) => {
+    const password = window.prompt(`Nova senha para ${managedUser.email} (mínimo de 8 caracteres):`);
+    if (password !== null) updateUser(managedUser.id, { password });
+  };
+
   return (
-    <MainLayout title="Configurações" subtitle="Administração do sistema">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
-          <p className="text-gray-600 mt-1">Administração de usuários, perfis e permissões</p>
+    <ProtectedRoute>
+      <MainLayout title="Configurações" subtitle="Administração do sistema">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div><h1 className="text-2xl font-bold text-gray-900">Gestão de usuários</h1><p className="text-gray-600 mt-1">Gerencie funções, acessos e senhas.</p></div>
+            {profile?.role === 'administrador' && <Button variant="outline" onClick={loadUsers} icon={<RefreshCw size={16} />}>Atualizar</Button>}
+          </div>
+
+          {profile?.role !== 'administrador' ? (
+            <Alert variant="warning" title="Acesso restrito"><span className="inline-flex items-center gap-2"><ShieldAlert size={18} />Somente administradores podem gerenciar usuários.</span></Alert>
+          ) : (
+            <>
+              {feedback && <Alert variant={feedback.type === 'error' ? 'destructive' : 'success'}>{feedback.text}</Alert>}
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2"><UserCog size={20} />Usuários</CardTitle></CardHeader>
+                <CardContent>
+                  {loading ? <div className="flex justify-center py-10"><LoadingSpinner /></div> : users.length === 0 ? <p className="text-center text-gray-500 py-8">Nenhum usuário encontrado.</p> : (
+                    <div className="overflow-x-auto"><table className="w-full text-sm">
+                      <thead><tr className="border-b text-left text-gray-600"><th className="px-3 py-3">Usuário</th><th className="px-3 py-3">Perfil</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Ações</th></tr></thead>
+                      <tbody>{users.map((managedUser) => <tr key={managedUser.id} className="border-b last:border-0">
+                        <td className="px-3 py-3"><p className="font-medium">{managedUser.full_name || 'Sem nome'}</p><p className="text-xs text-gray-500">{managedUser.email}</p>{!managedUser.user_id && <p className="text-xs text-orange-600">Não vinculado ao Authentication</p>}</td>
+                        <td className="px-3 py-3"><select className="border rounded-lg px-2 py-2 bg-white" value={managedUser.role} disabled={savingId === managedUser.id} onChange={(event) => updateUser(managedUser.id, { role: event.target.value as Role })}>{USER_ROLES.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}</select></td>
+                        <td className="px-3 py-3"><Badge variant={managedUser.is_active ? 'success' : 'secondary'}>{managedUser.is_active ? 'Ativo' : 'Inativo'}</Badge></td>
+                        <td className="px-3 py-3"><div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" icon={<KeyRound size={15} />} disabled={!managedUser.user_id || savingId === managedUser.id} onClick={() => resetPassword(managedUser)}>Redefinir senha</Button>
+                          <Button variant={managedUser.is_active ? 'danger' : 'secondary'} size="sm" disabled={managedUser.user_id === user?.id || savingId === managedUser.id} onClick={() => updateUser(managedUser.id, { isActive: !managedUser.is_active })}>{managedUser.is_active ? 'Desativar' : 'Ativar'}</Button>
+                        </div></td>
+                      </tr>)}</tbody>
+                    </table></div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
-
-        <div className="space-y-4">
-          {/* Users */}
-          <Card>
-            <CardHeader className="flex justify-between items-center">
-              <CardTitle>Usuários</CardTitle>
-              <Button variant="primary" size="sm" className="flex items-center gap-2">
-                <Plus size={16} />
-                Novo Usuário
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {['admin@hub.es', 'gestao@hub.es', 'recepcao@hub.es', 'manutencao@hub.es'].map((user, i) => (
-                  <div key={i} className="flex justify-between items-center p-3 border border-gray-200 rounded">
-                    <span className="font-medium text-sm">{user}</span>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm">
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Trash2 size={16} className="text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Roles */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Perfis de Acesso</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { name: 'Administrador', users: 1, perms: 'Acesso total' },
-                  { name: 'Administração', users: 2, perms: 'Compras, Eventos' },
-                  { name: 'Recepção', users: 1, perms: 'Eventos, Presença' },
-                  { name: 'Manutenção', users: 2, perms: 'Ocorrências' },
-                ].map((role, i) => (
-                  <div key={i} className="p-3 border border-gray-200 rounded">
-                    <p className="font-semibold text-sm">{role.name}</p>
-                    <p className="text-xs text-gray-600 mt-1">{role.users} usuários</p>
-                    <p className="text-xs text-gray-600">{role.perms}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Departments */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Setores</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {['Direção', 'Administração', 'Tecnologia', 'Limpeza', 'Eventos'].map((dept, i) => (
-                  <div key={i} className="flex justify-between items-center p-3 border border-gray-200 rounded">
-                    <span className="font-medium text-sm">{dept}</span>
-                    <Badge>Ativo</Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </MainLayout>
+      </MainLayout>
+    </ProtectedRoute>
   );
 }

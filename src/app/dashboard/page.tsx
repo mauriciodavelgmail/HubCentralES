@@ -283,7 +283,11 @@ export default function DashboardPage() {
                 <p className="font-medium text-orange-900 text-sm">3 Itens em Alerta</p>
                 <p className="text-xs text-orange-700">Estoque baixo</p>
               </div>
-              <Button variant="danger" className="w-full mt-4">
+              <Button
+                variant="danger"
+                className="w-full mt-4"
+                onClick={() => router.push('/ocorrencias')}
+              >
                 Ver Todos os Alertas
               </Button>
             </CardContent>

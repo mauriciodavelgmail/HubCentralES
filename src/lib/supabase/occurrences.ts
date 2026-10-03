@@ -6,7 +6,7 @@ export type Occurrence = Database['public']['Tables']['occurrences']['Row'];
 export async function getOccurrences() {
   const { data, error } = await supabase
     .from('occurrences')
-    .select('*, profiles!reporter_id(full_name, email), profiles!responsible_id(full_name, email)')
+    .select('*, reporter:profiles!reporter_id(full_name, email), responsible:profiles!responsible_id(full_name, email)')
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -16,7 +16,7 @@ export async function getOccurrences() {
 export async function getOccurrence(id: string) {
   const { data, error } = await supabase
     .from('occurrences')
-    .select('*, profiles!reporter_id(full_name, email), profiles!responsible_id(full_name, email)')
+    .select('*, reporter:profiles!reporter_id(full_name, email), responsible:profiles!responsible_id(full_name, email)')
     .eq('id', id)
     .single();
 
