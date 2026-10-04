@@ -63,8 +63,10 @@ npm install
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-RESEND_API_KEY=...
-EVENT_EMAIL_FROM=HubCentral ES+ <agenda@seu-dominio.com>
+EMAIL_PROVIDER=gmail
+GMAIL_USER=seu-email@gmail.com
+GMAIL_APP_PASSWORD=senha-de-aplicativo
+EVENT_EMAIL_FROM=HubCentral ES+ <seu-email@gmail.com>
 
 # Rodar servidor
 npm run dev
@@ -79,7 +81,7 @@ npm run dev
 3. O arquivo `002_seed_data.sql` contém os dados iniciais de demonstração.
 4. A migration `003_storage_buckets.sql` cria e configura os buckets usados pela aplicação.
 
-Para o envio de e-mails da agenda, cadastre `RESEND_API_KEY` e `EVENT_EMAIL_FROM` também nas variáveis do projeto na Vercel. O remetente precisa usar um domínio validado no Resend. Sem essas variáveis, o evento e as notificações internas continuam sendo gravados, e a tentativa de e-mail fica registrada como `ignorado` em `email_deliveries`.
+Para testes com uma conta Gmail, cadastre `EMAIL_PROVIDER=gmail`, `GMAIL_USER`, `GMAIL_APP_PASSWORD` e `EVENT_EMAIL_FROM` nas variáveis do projeto na Vercel. `GMAIL_APP_PASSWORD` é uma senha de aplicativo gerada após ativar a verificação em duas etapas; nunca use a senha normal da conta. Para produção, use `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` e um remetente de domínio validado. Sem uma configuração válida, o evento e as notificações internas continuam sendo gravados, e a tentativa de e-mail fica registrada como `ignorado` em `email_deliveries`.
 
 ## 👥 Usuários de Demo
 
