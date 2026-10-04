@@ -62,6 +62,9 @@ npm install
 # Configurar variáveis (.env.local)
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+RESEND_API_KEY=...
+EVENT_EMAIL_FROM=HubCentral ES+ <agenda@seu-dominio.com>
 
 # Rodar servidor
 npm run dev
@@ -75,6 +78,8 @@ npm run dev
 2. Executar, na ordem, todos os arquivos de `supabase/migrations/001_*.sql` até o arquivo de maior numeração.
 3. O arquivo `002_seed_data.sql` contém os dados iniciais de demonstração.
 4. A migration `003_storage_buckets.sql` cria e configura os buckets usados pela aplicação.
+
+Para o envio de e-mails da agenda, cadastre `RESEND_API_KEY` e `EVENT_EMAIL_FROM` também nas variáveis do projeto na Vercel. O remetente precisa usar um domínio validado no Resend. Sem essas variáveis, o evento e as notificações internas continuam sendo gravados, e a tentativa de e-mail fica registrada como `ignorado` em `email_deliveries`.
 
 ## 👥 Usuários de Demo
 
