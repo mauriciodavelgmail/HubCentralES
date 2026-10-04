@@ -8,7 +8,7 @@ import { ProtectedRoute } from '@/lib/auth/protected-route';
 import { useAuth } from '@/lib/auth/context';
 import { createEvent, deleteEvent, Event, getEvents, updateEvent } from '@/lib/supabase/events';
 import { supabase } from '@/lib/supabase/auth';
-import { uploadImage } from '@/lib/supabase/storage';
+import { deleteFile, uploadImage } from '@/lib/supabase/storage';
 
 type ViewMode = 'table' | 'calendar';
 type SortKey = 'title' | 'event_type' | 'space' | 'start_date' | 'start_time' | 'status';
@@ -52,6 +52,25 @@ const EMPTY_FORM = {
 };
 
 function onlyDigits(value: string) { return value.replace(/\D/g, ''); }
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code ? `Código: ${record.code}` : null]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    if (parts.length) return [...new Set(parts)].join(' — ');
+    try { return JSON.stringify(error); } catch { return 'Falha sem detalhes retornados pelo servidor.'; }
+  }
+  return 'Falha sem detalhes retornados pelo servidor.';
+}
+
+function validateImage(file: File | null, label: string) {
+  if (!file) return '';
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) return `${label}: use uma imagem JPG, PNG, WEBP ou GIF.`;
+  if (file.size > 10 * 1024 * 1024) return `${label}: o arquivo deve ter no máximo 10 MB.`;
+  return '';
+}
 function validCpf(value: string) {
   const cpf = onlyDigits(value);
   if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
@@ -150,6 +169,10 @@ export default function AgendaPage() {
     if (!form.organizer_name.trim() || !form.organizer_contact.trim()) return 'Informe o nome e contato do organizador responsável.';
     if (!editing?.thumbnail_url && !thumbnail) return 'Anexe a Imagem do Evento (Thumbnail).';
     if (!editing?.facilitator_photo_url && !facilitatorPhoto) return 'Anexe a foto da pessoa facilitadora.';
+    const thumbnailError = validateImage(thumbnail, 'Imagem do Evento');
+    if (thumbnailError) return thumbnailError;
+    const photoError = validateImage(facilitatorPhoto, 'Foto da pessoa facilitadora');
+    if (photoError) return photoError;
     return '';
   };
 
@@ -157,11 +180,19 @@ export default function AgendaPage() {
     event.preventDefault();
     const validation = validateForm(); if (validation) { setError(validation); return; }
     setSaving(true); setError(''); setNotice('');
+    let uploadedThumbnailPath: string | null = null;
+    let uploadedPhotoPath: string | null = null;
     try {
-      const [thumbnailUpload, photoUpload] = await Promise.all([
-        thumbnail ? uploadImage(thumbnail, 'events/thumbnails') : null,
-        facilitatorPhoto ? uploadImage(facilitatorPhoto, 'events/facilitators') : null,
-      ]);
+      let thumbnailUpload = null;
+      let photoUpload = null;
+      if (thumbnail) {
+        try { thumbnailUpload = await uploadImage(thumbnail, 'events/thumbnails'); uploadedThumbnailPath = thumbnailUpload.path; }
+        catch (uploadError) { throw new Error(`Falha no upload da Imagem do Evento: ${errorMessage(uploadError)}`); }
+      }
+      if (facilitatorPhoto) {
+        try { photoUpload = await uploadImage(facilitatorPhoto, 'events/facilitators'); uploadedPhotoPath = photoUpload.path; }
+        catch (uploadError) { throw new Error(`Falha no upload da foto da pessoa facilitadora: ${errorMessage(uploadError)}`); }
+      }
       const payload = {
         title: form.title.trim(), description: form.description.trim(), event_type: form.event_type, space_id: form.space_id, start_date: form.start_date, start_time: form.start_time, end_time: form.end_time, capacity: form.capacity ? Number(form.capacity) : null,
         audience_access: form.audience_access, activity_sector: form.activity_sector, facilitator_name: form.facilitator_name.trim(), facilitator_minibio: form.facilitator_minibio.trim(), facilitator_cnpj: onlyDigits(form.facilitator_cnpj) || null, facilitator_cpf: onlyDigits(form.facilitator_cpf), facilitator_phone: form.facilitator_phone.trim(), facilitator_social: form.facilitator_social.trim(), organizer_name: form.organizer_name.trim(), organizer_contact: form.organizer_contact.trim(), interpreter_needed: form.interpreter_needed === 'sim', equipments: form.equipments, materials_needed: form.materials_needed === 'sim', catering_needed: form.catering_needed === 'sim', furniture_change_needed: form.furniture_change_needed === 'sim',
@@ -169,15 +200,24 @@ export default function AgendaPage() {
         requester_id: editing?.requester_id ?? profile?.id, responsible_id: editing?.responsible_id ?? profile?.id, created_by: editing?.created_by ?? user?.id,
       };
       let saved: AgendaEvent;
-      if (editing) saved = await updateEvent(editing.id, payload as Partial<Event>) as AgendaEvent;
-      else saved = await createEvent({
-        ...payload,
-        status: profile?.role === 'administrador' ? 'confirmada' : 'aguardando_aprovacao',
-        approved_by: profile?.role === 'administrador' ? profile.id : null,
-        approved_at: profile?.role === 'administrador' ? new Date().toISOString() : null,
-      } as never) as AgendaEvent;
+      try {
+        if (editing) saved = await updateEvent(editing.id, payload as Partial<Event>) as AgendaEvent;
+        else saved = await createEvent({
+          ...payload,
+          status: profile?.role === 'administrador' ? 'confirmada' : 'aguardando_aprovacao',
+          approved_by: profile?.role === 'administrador' ? profile.id : null,
+          approved_at: profile?.role === 'administrador' ? new Date().toISOString() : null,
+        } as never) as AgendaEvent;
+      } catch (databaseError) {
+        throw new Error(`Falha ao gravar o evento no banco: ${errorMessage(databaseError)}`);
+      }
       setShowDialog(false); await loadEvents(); await notifyByEmail(saved.id, editing ? 'updated' : 'created');
-    } catch (saveError) { setError(`Erro ao salvar evento: ${saveError instanceof Error ? saveError.message : 'erro desconhecido'}`); }
+    } catch (saveError) {
+      console.error('Erro ao salvar evento:', saveError);
+      if (uploadedThumbnailPath) await deleteFile('images', uploadedThumbnailPath).catch((cleanupError) => console.error('Falha ao remover thumbnail órfã:', cleanupError));
+      if (uploadedPhotoPath) await deleteFile('images', uploadedPhotoPath).catch((cleanupError) => console.error('Falha ao remover foto órfã:', cleanupError));
+      setError(`Erro ao salvar evento: ${errorMessage(saveError)}`);
+    }
     finally { setSaving(false); }
   };
 
