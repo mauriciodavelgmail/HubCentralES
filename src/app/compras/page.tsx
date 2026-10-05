@@ -1,505 +1,1052 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import { MainLayout } from '@/components/layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, LoadingSpinner, EmptyState, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui';
-import { ProtectedRoute } from '@/lib/auth/protected-route';
-import { useAuth } from '@/lib/auth/context';
-import { getPurchases, createPurchase, updatePurchase, deletePurchase, Purchase, getPurchasesByStatus, getPurchasesByPriority } from '@/lib/supabase/purchases';
-import { Search, Plus, Trash2, Edit, AlertCircle, CheckCircle, ShoppingCart, TrendingUp } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  Ban,
+  Edit,
+  Eye,
+  FileText,
+  PackagePlus,
+  Plus,
+  Search,
+  ShoppingCart,
+  Trash2,
+} from "lucide-react";
+import { MainLayout } from "@/components/layout";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  LoadingSpinner,
+} from "@/components/ui";
+import { ProtectedRoute } from "@/lib/auth/protected-route";
+import { useAuth } from "@/lib/auth/context";
+import { supabase } from "@/lib/supabase/auth";
+import { uploadDocument } from "@/lib/supabase/storage";
 
-const STATUSES = ['cotacao', 'solicitacao', 'aprovacao', 'compra_realizada', 'recebimento', 'concluida', 'cancelada'];
-const PRIORITIES = ['baixa', 'media', 'alta', 'urgente'];
+type PurchaseType = "avulsa" | "insumos";
+type Supply = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  current_quantity: number;
+  minimum_quantity: number;
+  status: string;
+  unit: string;
+  unit_cost: number | null;
+  last_purchase_date: string | null;
+};
+type CartItem = Supply & {
+  purchase_quantity: string;
+  purchase_unit_cost: string;
+};
+type PurchaseItem = {
+  id: string;
+  supply_id: string;
+  supply_code_snapshot: string;
+  supply_name_snapshot: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  balance_before: number;
+  balance_after: number;
+};
+type Purchase = {
+  id: string;
+  purchase_number: string;
+  purchase_type: PurchaseType;
+  description: string | null;
+  supplier: string | null;
+  total_cost: number | null;
+  status: string;
+  priority: string;
+  justification: string | null;
+  notes: string | null;
+  expected_delivery_date: string | null;
+  fiscal_document_url: string | null;
+  cancellation_reason: string | null;
+  created_at: string;
+  purchase_items?: PurchaseItem[];
+};
+
+const EMPTY_FORM = {
+  purchase_type: "avulsa" as PurchaseType,
+  purchase_number: "",
+  description: "",
+  supplier: "",
+  quantity: "",
+  unit_cost: "",
+  total_cost: "",
+  priority: "media",
+  justification: "",
+  expected_delivery_date: "",
+  notes: "",
+};
+const inputClass =
+  "w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500";
+const money = (value: number | null | undefined) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    Number(value ?? 0),
+  );
+const showDate = (value: string | null) =>
+  value
+    ? new Date(
+        value + (value.length === 10 ? "T12:00:00" : ""),
+      ).toLocaleDateString("pt-BR")
+    : "—";
 
 export default function ComprasPage() {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "administrador";
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [supplyToAdd, setSupplyToAdd] = useState("");
+  const [fiscalFile, setFiscalFile] = useState<File | null>(null);
+  const [editing, setEditing] = useState<Purchase | null>(null);
+  const [details, setDetails] = useState<Purchase | null>(null);
+  const [cancelling, setCancelling] = useState<Purchase | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
-  const [formData, setFormData] = useState({
-    purchase_number: '',
-    description: '',
-    supplier: '',
-    quantity: '',
-    unit_cost: '',
-    total_cost: '',
-    status: 'cotacao',
-    priority: 'media',
-    requested_date: '',
-    expected_delivery_date: '',
-    notes: '',
-  });
-
-  // Load purchases
-  useEffect(() => {
-    loadPurchases();
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [purchaseResult, supplyResult] = await Promise.all([
+      supabase
+        .from("purchases")
+        .select("*, purchase_items(*)")
+        .order("created_at", { ascending: false }),
+      supabase.from("supplies").select("*").order("name"),
+    ]);
+    if (purchaseResult.error) setError(purchaseResult.error.message);
+    else setPurchases((purchaseResult.data ?? []) as Purchase[]);
+    if (supplyResult.error) setError(supplyResult.error.message);
+    else setSupplies((supplyResult.data ?? []) as Supply[]);
+    setLoading(false);
   }, []);
+  useEffect(() => void load(), [load]);
 
-  const loadPurchases = async () => {
-    try {
-      setLoading(true);
-      const data = await getPurchases();
-      setPurchases(data);
-      setError('');
-    } catch (err: any) {
-      setError('Erro ao carregar compras: ' + err.message);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  const filtered = useMemo(
+    () =>
+      purchases.filter((purchase) => {
+        const term = search.toLowerCase();
+        return (
+          (!statusFilter || purchase.status === statusFilter) &&
+          (!term ||
+            purchase.purchase_number.toLowerCase().includes(term) ||
+            purchase.description?.toLowerCase().includes(term) ||
+            purchase.supplier?.toLowerCase().includes(term))
+        );
+      }),
+    [purchases, search, statusFilter],
+  );
+
+  const openNew = () => {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setCart([]);
+    setFiscalFile(null);
+    setError("");
+    setShowForm(true);
   };
-
-  const handleOpenDialog = (purchase?: Purchase) => {
-    if (purchase) {
-      setEditingId(purchase.id);
-      setFormData({
-        purchase_number: purchase.purchase_number || '',
-        description: purchase.description || '',
-        supplier: purchase.supplier || '',
-        quantity: purchase.quantity?.toString() || '',
-        unit_cost: purchase.unit_cost?.toString() || '',
-        total_cost: purchase.total_cost?.toString() || '',
-        status: purchase.status,
-        priority: purchase.priority,
-        requested_date: purchase.requested_date || '',
-        expected_delivery_date: purchase.expected_delivery_date || '',
-        notes: purchase.notes || '',
-      });
-    } else {
-      setEditingId(null);
-      setFormData({
-        purchase_number: '',
-        description: '',
-        supplier: '',
-        quantity: '',
-        unit_cost: '',
-        total_cost: '',
-        status: 'cotacao',
-        priority: 'media',
-        requested_date: '',
-        expected_delivery_date: '',
-        notes: '',
-      });
-    }
-    setShowDialog(true);
+  const openEdit = (purchase: Purchase) => {
+    setEditing(purchase);
+    setForm({
+      purchase_type: purchase.purchase_type,
+      purchase_number: purchase.purchase_number,
+      description: purchase.description ?? "",
+      supplier: purchase.supplier ?? "",
+      quantity: "",
+      unit_cost: "",
+      total_cost: String(purchase.total_cost ?? ""),
+      priority: purchase.priority,
+      justification: purchase.justification ?? "",
+      expected_delivery_date: purchase.expected_delivery_date ?? "",
+      notes: purchase.notes ?? "",
+    });
+    setCart([]);
+    setFiscalFile(null);
+    setError("");
+    setShowForm(true);
   };
+  const addSupply = () => {
+    const supply = supplies.find((item) => item.id === supplyToAdd);
+    if (!supply || cart.some((item) => item.id === supply.id)) return;
+    setCart((items) => [
+      ...items,
+      {
+        ...supply,
+        purchase_quantity: "1",
+        purchase_unit_cost: String(supply.unit_cost ?? ""),
+      },
+    ]);
+    setSupplyToAdd("");
+  };
+  const cartTotal = cart.reduce(
+    (total, item) =>
+      total +
+      Number(item.purchase_quantity || 0) *
+        Number(item.purchase_unit_cost || 0),
+    0,
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    let uploadedPath = "";
     try {
-      const submitData = {
-        ...formData,
-        status: formData.status as Purchase['status'],
-        quantity: formData.quantity ? parseInt(formData.quantity) : null,
-        unit_cost: formData.unit_cost ? parseFloat(formData.unit_cost) : null,
-        total_cost: formData.total_cost ? parseFloat(formData.total_cost) : null,
-      };
-
-      if (editingId) {
-        await updatePurchase(editingId, submitData);
+      if (editing) {
+        if (!isAdmin)
+          throw new Error("Somente o Administrador pode alterar pedidos.");
+        const { error: updateError } = await supabase
+          .from("purchases")
+          .update({
+            description: form.description || null,
+            supplier: form.supplier || null,
+            priority: form.priority,
+            justification: form.justification || null,
+            expected_delivery_date: form.expected_delivery_date || null,
+            notes: form.notes || null,
+          })
+          .eq("id", editing.id);
+        if (updateError) throw updateError;
+        setNotice(
+          "Pedido atualizado. Os itens e saldos originais foram preservados.",
+        );
       } else {
-        await createPurchase(submitData as any);
+        if (!form.purchase_number.trim())
+          throw new Error("Informe o número do documento da operação.");
+        if (form.purchase_type === "insumos" && cart.length === 0)
+          throw new Error("Adicione pelo menos um insumo ao carrinho.");
+        if (form.purchase_type === "insumos" && !fiscalFile)
+          throw new Error(
+            "Anexe o documento da operação da compra de insumos.",
+          );
+        if (
+          form.purchase_type === "insumos" &&
+          cart.some(
+            (item) =>
+              Number(item.purchase_quantity) <= 0 ||
+              Number(item.purchase_unit_cost) < 0,
+          )
+        )
+          throw new Error(
+            "Preencha quantidade e valor de compra de todos os itens.",
+          );
+        let upload = null;
+        if (fiscalFile) {
+          upload = await uploadDocument(fiscalFile, "purchases");
+          uploadedPath = upload.path;
+        }
+        const { error: rpcError } = await supabase.rpc("issue_purchase_order", {
+          p_purchase: {
+            ...form,
+            total_cost:
+              form.purchase_type === "insumos" ? cartTotal : form.total_cost,
+            fiscal_document_url: upload?.url ?? "",
+            fiscal_document_size: upload?.size ?? "",
+            fiscal_document_type: upload?.type ?? "",
+          },
+          p_items: cart.map((item) => ({
+            supply_id: item.id,
+            quantity: Number(item.purchase_quantity),
+            unit_cost: Number(item.purchase_unit_cost),
+          })),
+        });
+        if (rpcError) throw rpcError;
+        setNotice(
+          "Pedido emitido e movimentações de estoque registradas com sucesso.",
+        );
       }
-      await loadPurchases();
-      setShowDialog(false);
-      setError('');
-    } catch (err: any) {
-      setError('Erro ao salvar compra: ' + err.message);
+      setShowForm(false);
+      await load();
+    } catch (saveError) {
+      if (uploadedPath)
+        await supabase.storage.from("documents").remove([uploadedPath]);
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Erro ao emitir pedido.",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja deletar esta compra?')) return;
-    try {
-      await deletePurchase(id);
-      await loadPurchases();
-      setError('');
-    } catch (err: any) {
-      setError('Erro ao deletar compra: ' + err.message);
+  const confirmCancellation = async () => {
+    if (!cancelling || cancelReason.trim().length < 5) return;
+    setSaving(true);
+    setError("");
+    const { error: rpcError } = await supabase.rpc("cancel_purchase_order", {
+      p_purchase_id: cancelling.id,
+      p_reason: cancelReason.trim(),
+    });
+    setSaving(false);
+    if (rpcError) {
+      setError(rpcError.message);
+      return;
     }
-  };
-
-  const filteredPurchases = purchases.filter(purchase => {
-    const matchesSearch = purchase.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      purchase.purchase_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      purchase.supplier?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = !filterStatus || purchase.status === filterStatus;
-    const matchesPriority = !filterPriority || purchase.priority === filterPriority;
-    return matchesSearch && matchesStatus && matchesPriority;
-  });
-
-  const totalValue = filteredPurchases.reduce((sum, p) => sum + (p.total_cost || 0), 0);
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'concluida':
-        return <CheckCircle size={16} className="text-green-600" />;
-      case 'compra_realizada':
-        return <CheckCircle size={16} className="text-blue-600" />;
-      case 'cancelada':
-        return <AlertCircle size={16} className="text-red-600" />;
-      default:
-        return <ShoppingCart size={16} className="text-gray-600" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'concluida':
-        return 'success';
-      case 'compra_realizada':
-        return 'info';
-      case 'cancelada':
-        return 'danger';
-      case 'aprovacao':
-        return 'warning';
-      default:
-        return 'secondary';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgente':
-        return 'danger';
-      case 'alta':
-        return 'warning';
-      case 'media':
-        return 'info';
-      default:
-        return 'secondary';
-    }
+    setCancelling(null);
+    setCancelReason("");
+    setNotice("Pedido cancelado, estoque estornado e histórico registrado.");
+    await load();
   };
 
   return (
-    <ProtectedRoute allowedRoles={['administrador', 'administracao']}>
+    <ProtectedRoute allowedRoles={["administrador", "administracao"]}>
       <MainLayout
-        userName={profile?.full_name || 'Usuário'}
-        userRole={profile?.role || 'visitante'}
+        userName={profile?.full_name || "Usuário"}
+        userRole={profile?.role || "visitante"}
         title="Compras"
-        subtitle="Gerencie todas as compras e aquisições"
+        subtitle="Pedidos avulsos e aquisições de insumos com controle de estoque"
       >
         <div className="space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-sm text-gray-600 mb-1">Total de Compras</p>
-                <p className="text-2xl font-bold text-gray-900">{purchases.length}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-sm text-gray-600 mb-1">Valor Total</p>
-                <p className="text-2xl font-bold text-blue-600">R$ {totalValue.toFixed(2).replace('.', ',')}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-sm text-gray-600 mb-1">Em Progresso</p>
-                <p className="text-2xl font-bold text-yellow-600">{purchases.filter(p => p.status !== 'concluida' && p.status !== 'cancelada').length}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-sm text-gray-600 mb-1">Concluídas</p>
-                <p className="text-2xl font-bold text-green-600">{purchases.filter(p => p.status === 'concluida').length}</p>
-              </CardContent>
-            </Card>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Metric label="Pedidos" value={String(purchases.length)} />
+            <Metric
+              label="Compras de insumos"
+              value={String(
+                purchases.filter((p) => p.purchase_type === "insumos").length,
+              )}
+            />
+            <Metric
+              label="Valor total"
+              value={money(
+                purchases
+                  .filter((p) => p.status !== "cancelada")
+                  .reduce((sum, p) => sum + Number(p.total_cost ?? 0), 0),
+              )}
+            />
           </div>
-
-          {/* Header */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex gap-2 flex-1">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Pesquisar por descrição, número ou fornecedor..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Todos Status</option>
-                {STATUSES.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-              <select
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Todas Prioridades</option>
-                {PRIORITIES.map(priority => (
-                  <option key={priority} value={priority}>{priority}</option>
-                ))}
-              </select>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+              <input
+                className={inputClass + " pl-10"}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por número, descrição ou fornecedor"
+              />
             </div>
-            <Button
-              onClick={() => handleOpenDialog()}
-              className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+            <select
+              className={inputClass + " lg:w-52"}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <Plus size={20} />
-              Nova Compra
+              <option value="">Todos os status</option>
+              <option value="compra_realizada">Compra realizada</option>
+              <option value="concluida">Concluída</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+            <Button onClick={openNew}>
+              <Plus size={18} /> Emitir pedido
             </Button>
           </div>
-
-          {/* Error */}
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-              <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
-
-          {/* Purchases Table */}
+          {error && <Message danger>{error}</Message>}
+          {notice && <Message>{notice}</Message>}
           {loading ? (
-            <div className="flex items-center justify-center min-h-96">
+            <div className="flex justify-center py-20">
               <LoadingSpinner size="lg" />
             </div>
-          ) : filteredPurchases.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <EmptyState
-              title="Nenhuma compra encontrada"
-              description="Comece criando sua primeira compra"
-              action={<Button onClick={() => handleOpenDialog()} className="bg-blue-600 text-white">Criar Compra</Button>}
+              title="Nenhum pedido encontrado"
+              description="Emita uma compra avulsa ou uma compra de insumos."
+              action={<Button onClick={openNew}>Emitir pedido</Button>}
             />
           ) : (
             <Card>
-              <CardHeader>
-                <CardTitle>{filteredPurchases.length} Compra(s)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Descrição</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Número</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Fornecedor</th>
-                        <th className="px-4 py-3 text-right font-semibold text-gray-700">Valor</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Prioridade</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Ações</th>
+              <CardContent className="overflow-x-auto p-0">
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <Th>Pedido</Th>
+                      <Th>Tipo</Th>
+                      <Th>Descrição / Itens</Th>
+                      <Th>Fornecedor</Th>
+                      <Th>Valor</Th>
+                      <Th>Status</Th>
+                      <Th>Ações</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((purchase) => (
+                      <tr
+                        key={purchase.id}
+                        className="border-t hover:bg-gray-50"
+                      >
+                        <td className="px-4 py-3">
+                          <p className="font-semibold">
+                            {purchase.purchase_number}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {showDate(purchase.created_at)}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant={
+                              purchase.purchase_type === "insumos"
+                                ? "info"
+                                : "secondary"
+                            }
+                          >
+                            {purchase.purchase_type === "insumos"
+                              ? "Insumos"
+                              : "Avulsa"}
+                          </Badge>
+                        </td>
+                        <td className="max-w-xs px-4 py-3">
+                          <p className="truncate">
+                            {purchase.description || "—"}
+                          </p>
+                          {purchase.purchase_type === "insumos" && (
+                            <p className="text-xs text-gray-500">
+                              {purchase.purchase_items?.length ?? 0} item(ns)
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {purchase.supplier || "—"}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-blue-700">
+                          {money(purchase.total_cost)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant={
+                              purchase.status === "cancelada"
+                                ? "danger"
+                                : purchase.status === "concluida"
+                                  ? "success"
+                                  : "info"
+                            }
+                          >
+                            {purchase.status.replaceAll("_", " ")}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Ver detalhes"
+                              onClick={() => setDetails(purchase)}
+                            >
+                              <Eye size={17} />
+                            </Button>
+                            {isAdmin && purchase.status !== "cancelada" && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Editar pedido"
+                                  onClick={() => openEdit(purchase)}
+                                >
+                                  <Edit size={17} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Cancelar pedido"
+                                  className="text-red-700"
+                                  onClick={() => {
+                                    setCancelling(purchase);
+                                    setCancelReason("");
+                                  }}
+                                >
+                                  <Ban size={17} />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {filteredPurchases.map(purchase => (
-                        <tr key={purchase.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-gray-900">{purchase.description}</p>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            <code className="bg-gray-100 px-2 py-1 rounded text-xs">{purchase.purchase_number}</code>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {purchase.supplier || '—'}
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-blue-600">
-                            R$ {(purchase.total_cost || 0).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(purchase.status)}
-                              <Badge variant={getStatusColor(purchase.status) as any}>{purchase.status}</Badge>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={getPriorityColor(purchase.priority) as any}>{purchase.priority}</Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenDialog(purchase)}
-                                className="text-gray-600 hover:bg-gray-100"
-                              >
-                                <Edit size={16} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(purchase.id)}
-                                className="text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 size={16} />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </CardContent>
             </Card>
           )}
 
-          {/* Create/Edit Dialog */}
-          <Dialog open={showDialog} onOpenChange={setShowDialog}>
-            <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
+          <Dialog open={showForm} onOpenChange={setShowForm}>
+            <DialogContent className="max-h-[94dvh] max-w-6xl overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingId ? 'Editar Compra' : 'Nova Compra'}</DialogTitle>
+                <DialogTitle>
+                  {editing ? "Editar pedido" : "Emitir pedido de compra"}
+                </DialogTitle>
                 <DialogDescription>
-                  {editingId ? 'Atualize os dados da compra' : 'Preencha os dados da nova compra'}
+                  {editing
+                    ? "Somente dados administrativos podem ser alterados; itens e saldos ficam preservados."
+                    : "Escolha entre compra avulsa ou aquisição de insumos controlados."}
                 </DialogDescription>
               </DialogHeader>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Purchase Number & Supplier */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Número da Compra</label>
-                    <input
-                      type="text"
-                      value={formData.purchase_number}
-                      onChange={(e) => setFormData({ ...formData, purchase_number: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <form onSubmit={save} className="space-y-6">
+                {!editing && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TypeCard
+                      active={form.purchase_type === "avulsa"}
+                      icon={<FileText />}
+                      title="Compra avulsa"
+                      description="Serviços e produtos sem controle de saldo"
+                      onClick={() => {
+                        setForm({ ...form, purchase_type: "avulsa" });
+                        setCart([]);
+                      }}
+                    />
+                    <TypeCard
+                      active={form.purchase_type === "insumos"}
+                      icon={<PackagePlus />}
+                      title="Compra de insumos"
+                      description="Um ou mais itens com entrada automática no estoque"
+                      onClick={() =>
+                        setForm({ ...form, purchase_type: "insumos" })
+                      }
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+                )}
+                <section className="grid gap-4 rounded-xl border p-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="Número do documento da operação *">
                     <input
-                      type="text"
-                      value={formData.supplier}
-                      onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                      disabled={Boolean(editing)}
+                      className={inputClass}
+                      value={form.purchase_number}
+                      onChange={(e) =>
+                        setForm({ ...form, purchase_number: e.target.value })
+                      }
+                      placeholder="NF, pedido, romaneio..."
                     />
-                  </div>
-                </div>
-
-                {/* Quantity, Unit Cost, Total Cost */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+                  </Field>
+                  <Field label="Fornecedor *">
                     <input
-                      type="number"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                      className={inputClass}
+                      value={form.supplier}
+                      onChange={(e) =>
+                        setForm({ ...form, supplier: e.target.value })
+                      }
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.unit_cost}
-                      onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor Total</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.total_cost}
-                      onChange={(e) => setFormData({ ...formData, total_cost: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Status & Priority */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                  </Field>
+                  <Field label="Prioridade">
                     <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={inputClass}
+                      value={form.priority}
+                      onChange={(e) =>
+                        setForm({ ...form, priority: e.target.value })
+                      }
                     >
-                      {STATUSES.map(status => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
+                      <option value="baixa">Baixa</option>
+                      <option value="media">Média</option>
+                      <option value="alta">Alta</option>
+                      <option value="critica">Crítica</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Prioridade *</label>
-                    <select
-                      value={formData.priority}
-                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {PRIORITIES.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Dates */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Data Solicitado</label>
+                  </Field>
+                  <Field label="Descrição *" className="sm:col-span-2">
+                    <input
+                      required
+                      className={inputClass}
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="Entrega esperada">
                     <input
                       type="date"
-                      value={formData.requested_date}
-                      onChange={(e) => setFormData({ ...formData, requested_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={inputClass}
+                      value={form.expected_delivery_date}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          expected_delivery_date: e.target.value,
+                        })
+                      }
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Data Entrega Esperada</label>
-                    <input
-                      type="date"
-                      value={formData.expected_delivery_date}
-                      onChange={(e) => setFormData({ ...formData, expected_delivery_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  </Field>
+                  <Field
+                    label="Justificativa"
+                    className="sm:col-span-2 lg:col-span-3"
+                  >
+                    <textarea
+                      rows={2}
+                      className={inputClass}
+                      value={form.justification}
+                      onChange={(e) =>
+                        setForm({ ...form, justification: e.target.value })
+                      }
                     />
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  </Field>
+                  <Field
+                    label="Observações"
+                    className="sm:col-span-2 lg:col-span-3"
+                  >
+                    <textarea
+                      rows={2}
+                      className={inputClass}
+                      value={form.notes}
+                      onChange={(e) =>
+                        setForm({ ...form, notes: e.target.value })
+                      }
+                    />
+                  </Field>
+                </section>
+                {!editing && form.purchase_type === "avulsa" && (
+                  <section className="grid gap-4 rounded-xl border border-blue-100 bg-blue-50/40 p-4 sm:grid-cols-3">
+                    <Field label="Quantidade">
+                      <input
+                        type="number"
+                        min="1"
+                        className={inputClass}
+                        value={form.quantity}
+                        onChange={(e) =>
+                          setForm({ ...form, quantity: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Valor unitário">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className={inputClass}
+                        value={form.unit_cost}
+                        onChange={(e) =>
+                          setForm({ ...form, unit_cost: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Valor total *">
+                      <input
+                        required
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className={inputClass}
+                        value={form.total_cost}
+                        onChange={(e) =>
+                          setForm({ ...form, total_cost: e.target.value })
+                        }
+                      />
+                    </Field>
+                  </section>
+                )}
+                {!editing && form.purchase_type === "insumos" && (
+                  <CartSection
+                    supplies={supplies}
+                    cart={cart}
+                    setCart={setCart}
+                    supplyToAdd={supplyToAdd}
+                    setSupplyToAdd={setSupplyToAdd}
+                    addSupply={addSupply}
+                    total={cartTotal}
                   />
-                </div>
-
+                )}
+                {!editing && (
+                  <Field
+                    label={`Documento da operação (PDF ou imagem)${form.purchase_type === "insumos" ? " *" : ""}`}
+                  >
+                    <input
+                      type="file"
+                      required={form.purchase_type === "insumos"}
+                      accept="application/pdf,image/png,image/jpeg,image/webp"
+                      className={inputClass}
+                      onChange={(e) =>
+                        setFiscalFile(e.target.files?.[0] ?? null)
+                      }
+                    />
+                    <span className="mt-1 block text-xs text-gray-500">
+                      O arquivo será registrado automaticamente em Documentos
+                      Fiscais.
+                    </span>
+                  </Field>
+                )}
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>
-                    Cancelar
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowForm(false)}
+                  >
+                    Voltar
                   </Button>
-                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700">
-                    {editingId ? 'Atualizar' : 'Criar'} Compra
+                  <Button type="submit" loading={saving}>
+                    {editing ? "Salvar alterações" : "Emitir pedido"}
                   </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
+
+          <Dialog
+            open={Boolean(details)}
+            onOpenChange={(open) => !open && setDetails(null)}
+          >
+            <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Pedido {details?.purchase_number}</DialogTitle>
+                <DialogDescription>{details?.description}</DialogDescription>
+              </DialogHeader>
+              {details && (
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <ReadOnly
+                      label="Tipo"
+                      value={
+                        details.purchase_type === "insumos"
+                          ? "Compra de insumos"
+                          : "Compra avulsa"
+                      }
+                    />
+                    <ReadOnly
+                      label="Fornecedor"
+                      value={details.supplier || "—"}
+                    />
+                    <ReadOnly label="Total" value={money(details.total_cost)} />
+                  </div>
+                  {details.purchase_items?.length ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[600px] text-sm">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <Th>Insumo</Th>
+                            <Th>Quantidade</Th>
+                            <Th>Valor unitário</Th>
+                            <Th>Saldo anterior → novo</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {details.purchase_items.map((item) => (
+                            <tr className="border-t" key={item.id}>
+                              <td className="p-3">
+                                <strong>{item.supply_code_snapshot}</strong> —{" "}
+                                {item.supply_name_snapshot}
+                              </td>
+                              <td className="p-3">{item.quantity}</td>
+                              <td className="p-3">{money(item.unit_cost)}</td>
+                              <td className="p-3">
+                                {item.balance_before} → {item.balance_after}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                  {details.fiscal_document_url && (
+                    <a
+                      href={details.fiscal_document_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 text-blue-700 hover:underline"
+                    >
+                      <FileText size={17} /> Abrir documento fiscal
+                    </a>
+                  )}
+                  {details.cancellation_reason && (
+                    <Message danger>
+                      Motivo do cancelamento: {details.cancellation_reason}
+                    </Message>
+                  )}
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDetails(null)}>
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={Boolean(cancelling)}
+            onOpenChange={(open) => !open && setCancelling(null)}
+          >
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-red-700">
+                  Cancelar pedido
+                </DialogTitle>
+                <DialogDescription>
+                  O saldo de todos os insumos será estornado e a operação ficará
+                  permanentemente registrada.
+                </DialogDescription>
+              </DialogHeader>
+              <Field label="Motivo do cancelamento *">
+                <textarea
+                  autoFocus
+                  rows={4}
+                  className={inputClass}
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                />
+              </Field>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => setCancelling(null)}
+                >
+                  Voltar
+                </Button>
+                <Button
+                  variant="danger"
+                  loading={saving}
+                  disabled={cancelReason.trim().length < 5}
+                  onClick={() => void confirmCancellation()}
+                >
+                  <Ban size={17} /> Confirmar cancelamento
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </MainLayout>
     </ProtectedRoute>
+  );
+}
+
+function CartSection({
+  supplies,
+  cart,
+  setCart,
+  supplyToAdd,
+  setSupplyToAdd,
+  addSupply,
+  total,
+}: {
+  supplies: Supply[];
+  cart: CartItem[];
+  setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
+  supplyToAdd: string;
+  setSupplyToAdd: (value: string) => void;
+  addSupply: () => void;
+  total: number;
+}) {
+  return (
+    <section className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+      <div>
+        <h3 className="font-semibold">Carrinho de insumos</h3>
+        <p className="text-sm text-gray-600">
+          Dados cadastrais e saldos são somente leitura. Informe quantidade e
+          valor atual.
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <select
+          className={inputClass}
+          value={supplyToAdd}
+          onChange={(e) => setSupplyToAdd(e.target.value)}
+        >
+          <option value="">Selecione um insumo</option>
+          {supplies
+            .filter((s) => !cart.some((item) => item.id === s.id))
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.code} — {s.name}
+              </option>
+            ))}
+        </select>
+        <Button type="button" disabled={!supplyToAdd} onClick={addSupply}>
+          <ShoppingCart size={17} /> Adicionar
+        </Button>
+      </div>
+      {cart.length === 0 ? (
+        <p className="rounded-lg bg-white p-6 text-center text-sm text-gray-500">
+          Nenhum insumo adicionado.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {cart.map((item, index) => (
+            <div key={item.id} className="rounded-xl border bg-white p-4">
+              <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <ReadOnly label="Código" value={item.code} />
+                <ReadOnly
+                  label="Descrição"
+                  value={item.description || item.name}
+                />
+                <ReadOnly
+                  label="Saldo atual / mínimo"
+                  value={`${item.current_quantity} / ${item.minimum_quantity} ${item.unit}`}
+                />
+                <ReadOnly label="Status" value={item.status} />
+                <ReadOnly label="Último valor" value={money(item.unit_cost)} />
+                <ReadOnly
+                  label="Última compra"
+                  value={showDate(item.last_purchase_date)}
+                />
+                <Field label="Quantidade da compra *">
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    className={inputClass}
+                    value={item.purchase_quantity}
+                    onChange={(e) =>
+                      setCart((current) =>
+                        current.map((entry, i) =>
+                          i === index
+                            ? { ...entry, purchase_quantity: e.target.value }
+                            : entry,
+                        ),
+                      )
+                    }
+                  />
+                </Field>
+                <Field label="Valor atual unitário *">
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={inputClass}
+                    value={item.purchase_unit_cost}
+                    onChange={(e) =>
+                      setCart((current) =>
+                        current.map((entry, i) =>
+                          i === index
+                            ? { ...entry, purchase_unit_cost: e.target.value }
+                            : entry,
+                        ),
+                      )
+                    }
+                  />
+                </Field>
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t pt-3">
+                <strong>
+                  {money(
+                    Number(item.purchase_quantity || 0) *
+                      Number(item.purchase_unit_cost || 0),
+                  )}
+                </strong>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-700"
+                  onClick={() =>
+                    setCart((current) =>
+                      current.filter((entry) => entry.id !== item.id),
+                    )
+                  }
+                >
+                  <Trash2 size={16} /> Remover
+                </Button>
+              </div>
+            </div>
+          ))}
+          <div className="text-right text-lg font-bold">
+            Total: {money(total)}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-sm text-gray-500">{label}</p>
+        <p className="mt-1 text-2xl font-bold">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+function Message({
+  children,
+  danger = false,
+}: {
+  children: React.ReactNode;
+  danger?: boolean;
+}) {
+  return (
+    <div
+      className={`flex gap-2 rounded-lg border p-3 text-sm ${danger ? "border-red-200 bg-red-50 text-red-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}
+    >
+      <AlertCircle className="shrink-0" size={18} />
+      {children}
+    </div>
+  );
+}
+function Field({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={className}>
+      <span className="mb-1 block text-sm font-medium text-gray-700">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+function ReadOnly({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-gray-50 px-3 py-2">
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      <p className="break-words text-sm font-semibold text-gray-800">{value}</p>
+    </div>
+  );
+}
+function Th({ children }: { children: React.ReactNode }) {
+  return (
+    <th className="px-4 py-3 text-left font-semibold text-gray-700">
+      {children}
+    </th>
+  );
+}
+function TypeCard({
+  active,
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-start gap-3 rounded-xl border-2 p-4 text-left transition ${active ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}
+    >
+      <span className={active ? "text-blue-700" : "text-gray-500"}>{icon}</span>
+      <span>
+        <strong className="block">{title}</strong>
+        <span className="text-sm text-gray-600">{description}</span>
+      </span>
+    </button>
   );
 }
