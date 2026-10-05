@@ -57,6 +57,20 @@ const CATEGORIES = [
 const STATUSES = ["normal", "baixo", "critico"];
 type ManagedSupply = Supply & { is_active?: boolean };
 
+function stockStatus(supply: ManagedSupply) {
+  if (
+    supply.minimum_quantity > 0 &&
+    supply.current_quantity <= supply.minimum_quantity * 0.5
+  )
+    return "critico";
+  if (
+    supply.minimum_quantity > 0 &&
+    supply.current_quantity <= supply.minimum_quantity
+  )
+    return "baixo";
+  return "normal";
+}
+
 export default function InsumosPage() {
   const { user, profile } = useAuth();
   const [supplies, setSupplies] = useState<ManagedSupply[]>([]);
@@ -296,11 +310,11 @@ export default function InsumosPage() {
       supply.supplier?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory =
       !filterCategory || supply.category === filterCategory;
-    const matchesStatus = !filterStatus || supply.status === filterStatus;
+    const matchesStatus = !filterStatus || stockStatus(supply) === filterStatus;
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const criticalItems = supplies.filter((s) => s.status === "critico");
+  const criticalItems = supplies.filter((s) => stockStatus(s) === "critico");
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -562,11 +576,13 @@ export default function InsumosPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              {getStatusIcon(supply.status)}
+                              {getStatusIcon(stockStatus(supply))}
                               <Badge
-                                variant={getStatusColor(supply.status) as any}
+                                variant={
+                                  getStatusColor(stockStatus(supply)) as any
+                                }
                               >
-                                {supply.status}
+                                {stockStatus(supply)}
                               </Badge>
                               {supply.is_active === false && (
                                 <Badge variant="secondary">inativo</Badge>

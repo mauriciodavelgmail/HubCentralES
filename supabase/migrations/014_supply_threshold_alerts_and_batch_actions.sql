@@ -35,7 +35,7 @@ AS $$
 BEGIN
   NEW.status := CASE
     WHEN NEW.minimum_quantity > 0
-      AND NEW.current_quantity < (NEW.minimum_quantity * 0.5) THEN 'critico'
+      AND NEW.current_quantity <= (NEW.minimum_quantity * 0.5) THEN 'critico'
     WHEN NEW.minimum_quantity > 0
       AND NEW.current_quantity <= NEW.minimum_quantity THEN 'baixo'
     ELSE 'normal'
@@ -120,4 +120,3 @@ $$;
 
 REVOKE ALL ON FUNCTION public.deactivate_supplies(UUID[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.deactivate_supplies(UUID[]) TO authenticated;
-
