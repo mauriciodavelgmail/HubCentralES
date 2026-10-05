@@ -1054,59 +1054,66 @@ export default function AgendaPage() {
                       </div>
                     ) : (
                       <>
-                        <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-gray-500">
-                          {[
-                            "Dom",
-                            "Seg",
-                            "Ter",
-                            "Qua",
-                            "Qui",
-                            "Sex",
-                            "Sáb",
-                          ].map((day) => (
-                            <div key={day}>{day}</div>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                          {calendarDays.map((day, index) => {
-                            if (!day) return <div key={`empty-${index}`} />;
-                            const date = dateKey(day);
-                            const dayEvents = calendarEvents.filter(
-                              (item) => item.start_date === date,
-                            );
-                            const isPast =
-                              date < new Date().toLocaleDateString("en-CA");
-                            const unavailable = isPast || dayEvents.length > 0;
-                            return (
-                              <button
-                                key={date}
-                                disabled={unavailable}
-                                onClick={() => openForm(undefined, date)}
-                                className={`min-h-24 rounded-lg border p-1 text-left sm:min-h-28 sm:p-2 ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : "border-green-200 bg-green-50 hover:bg-green-100"}`}
-                              >
-                                <strong>{day}</strong>
-                                <p
-                                  className={`mt-1 text-[10px] font-medium sm:text-xs ${unavailable ? "text-red-700" : "text-green-700"}`}
-                                >
-                                  {unavailable ? "Indisponível" : "Disponível"}
-                                </p>
-                                {dayEvents.map((item) => (
-                                  <div
-                                    key={item.id}
-                                    className="mt-1 text-[10px] text-red-800 sm:text-xs"
+                        <div className="-mx-2 overflow-x-auto px-2 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+                          <div className="min-w-[560px] sm:min-w-0">
+                            <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-500 sm:gap-2">
+                              {[
+                                "Dom",
+                                "Seg",
+                                "Ter",
+                                "Qua",
+                                "Qui",
+                                "Sex",
+                                "Sáb",
+                              ].map((day) => (
+                                <div key={day}>{day}</div>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                              {calendarDays.map((day, index) => {
+                                if (!day) return <div key={`empty-${index}`} />;
+                                const date = dateKey(day);
+                                const dayEvents = calendarEvents.filter(
+                                  (item) => item.start_date === date,
+                                );
+                                const isPast =
+                                  date < new Date().toLocaleDateString("en-CA");
+                                const unavailable =
+                                  isPast || dayEvents.length > 0;
+                                return (
+                                  <button
+                                    key={date}
+                                    disabled={unavailable}
+                                    onClick={() => openForm(undefined, date)}
+                                    className={`min-h-32 min-w-0 overflow-hidden rounded-lg border p-1.5 text-left sm:min-h-28 sm:p-2 ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : "border-green-200 bg-green-50 hover:bg-green-100"}`}
                                   >
-                                    <p className="truncate font-semibold">
-                                      {item.title}
+                                    <strong>{day}</strong>
+                                    <p
+                                      className={`mt-1 text-[10px] font-medium sm:text-xs ${unavailable ? "text-red-700" : "text-green-700"}`}
+                                    >
+                                      {unavailable
+                                        ? "Indisponível"
+                                        : "Disponível"}
                                     </p>
-                                    <p>
-                                      {item.start_time.slice(0, 5)}–
-                                      {item.end_time.slice(0, 5)}
-                                    </p>
-                                  </div>
-                                ))}
-                              </button>
-                            );
-                          })}
+                                    {dayEvents.map((item) => (
+                                      <div
+                                        key={item.id}
+                                        className="mt-1 min-w-0 text-[10px] leading-tight text-red-800 sm:text-xs sm:leading-normal"
+                                      >
+                                        <p className="break-words font-semibold [overflow-wrap:anywhere] sm:truncate">
+                                          {item.title}
+                                        </p>
+                                        <p>
+                                          {item.start_time.slice(0, 5)}–
+                                          {item.end_time.slice(0, 5)}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                       </>
                     )}

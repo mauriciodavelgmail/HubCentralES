@@ -283,9 +283,11 @@ export function ParticipantManager({
   };
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent className="max-h-[94vh] max-w-5xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Vincular participantes — {event.title}</DialogTitle>
+      <DialogContent className="max-h-[94dvh] max-w-6xl overflow-y-auto">
+        <DialogHeader className="border-b border-gray-100 pb-4">
+          <DialogTitle className="break-words text-xl">
+            Vincular participantes — {event.title}
+          </DialogTitle>
         </DialogHeader>
         {error && (
           <p className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>
@@ -295,12 +297,15 @@ export function ParticipantManager({
             {notice}
           </p>
         )}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <form onSubmit={save} className="space-y-3 rounded-lg border p-4">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+          <form
+            onSubmit={save}
+            className="min-w-0 space-y-4 rounded-xl border border-gray-200 bg-gray-50/50 p-4 sm:p-5"
+          >
             <h3 className="font-semibold">
               {editing ? "Editar participante" : "Cadastro manual"}
             </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 label="Nome completo *"
                 required
@@ -347,8 +352,8 @@ export function ParticipantManager({
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
             </div>
-            <div className="flex gap-2">
-              <Button type="submit" loading={saving}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" loading={saving} className="justify-center">
                 <Plus size={16} />
                 {editing ? "Salvar" : "Cadastrar e convidar"}
               </Button>
@@ -356,6 +361,7 @@ export function ParticipantManager({
                 <Button
                   type="button"
                   variant="outline"
+                  className="justify-center"
                   onClick={() => {
                     setEditing(null);
                     setForm(EMPTY);
@@ -366,8 +372,8 @@ export function ParticipantManager({
               )}
             </div>
           </form>
-          <div className="space-y-4">
-            <div className="rounded-lg border p-4">
+          <div className="min-w-0 space-y-4">
+            <div className="rounded-xl border border-gray-200 p-4 sm:p-5">
               <h3 className="font-semibold">Importação em massa</h3>
               <p className="my-2 text-sm text-gray-600">
                 Baixe o modelo, mantenha os cabeçalhos e use CSV separado por
@@ -394,7 +400,7 @@ export function ParticipantManager({
                 </label>
               </div>
             </div>
-            <div className="rounded-lg border p-4">
+            <div className="rounded-xl border border-gray-200 p-4 sm:p-5">
               <h3 className="font-semibold">Inscrição pública</h3>
               <p className="my-2 text-sm text-gray-600">
                 Ative para gerar um link compartilhável de autoinscrição.
@@ -406,7 +412,7 @@ export function ParticipantManager({
                 {publicEnabled ? "Desativar link" : "Ativar link público"}
               </Button>
               {publicEnabled && publicUrl && (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex min-w-0 gap-2">
                   <input
                     readOnly
                     className="min-w-0 flex-1 rounded border px-2 text-sm"
@@ -426,11 +432,11 @@ export function ParticipantManager({
             </div>
           </div>
         </div>
-        <div className="mt-6 flex flex-wrap justify-between gap-2">
+        <div className="mt-6 flex flex-col justify-between gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center">
           <h3 className="text-lg font-semibold">
             Participantes ({participants.length})
           </h3>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button variant="outline" onClick={exportPdf}>
               <FileDown size={16} />
               Exportar PDF
