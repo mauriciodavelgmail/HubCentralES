@@ -152,6 +152,12 @@ export const SIDEBAR_MENU = [
     roles: ['administrador', 'administracao', 'recepcao', 'visitante'],
   },
   {
+    icon: 'Users',
+    label: 'Recepção de Eventos',
+    href: '/recepcao',
+    roles: ['administrador', 'recepcao'],
+  },
+  {
     icon: 'Package',
     label: 'Insumos',
     href: '/insumos',

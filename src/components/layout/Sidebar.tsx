@@ -18,6 +18,7 @@ import {
   X,
   FileStack,
   HandshakeIcon,
+  Users,
 } from 'lucide-react';
 import { SIDEBAR_MENU } from '@/constants';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ userRole = 'visitante', userNa
       Settings: <Settings size={20} />,
       FileStack: <FileStack size={20} />,
       HandshakeIcon: <HandshakeIcon size={20} />,
+      Users: <Users size={20} />,
     };
     return icons[iconName] || null;
   };
