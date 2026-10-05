@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
+  Ban,
   CalendarDays,
   Check,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   Table2,
   Trash2,
   Users,
+  ZoomIn,
   X,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout";
@@ -50,12 +52,7 @@ import { ParticipantManager } from "@/components/events/ParticipantManager";
 
 type ViewMode = "table" | "calendar";
 type SortKey =
-  | "title"
-  | "event_type"
-  | "space"
-  | "start_date"
-  | "start_time"
-  | "status";
+  "title" | "event_type" | "space" | "start_date" | "start_time" | "status";
 type SortDirection = "asc" | "desc";
 
 interface AgendaEvent extends Event {
@@ -244,6 +241,14 @@ export default function AgendaPage() {
   const [participantEvent, setParticipantEvent] = useState<AgendaEvent | null>(
     null,
   );
+  const [cancelEvent, setCancelEvent] = useState<AgendaEvent | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{
+    url: string;
+    alt: string;
+  } | null>(null);
 
   const loadEvents = useCallback(async () => {
     setLoading(true);
@@ -394,7 +399,9 @@ export default function AgendaPage() {
   const notifyByEmail = async (eventId: string, action: string) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
-      setNotice("Evento salvo, mas a sessão expirou antes do envio dos e-mails.");
+      setNotice(
+        "Evento salvo, mas a sessão expirou antes do envio dos e-mails.",
+      );
       return;
     }
     try {
@@ -408,12 +415,18 @@ export default function AgendaPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setNotice(`Evento salvo, mas houve erro no e-mail: ${payload.error ?? "falha não detalhada"}`);
+        setNotice(
+          `Evento salvo, mas houve erro no e-mail: ${payload.error ?? "falha não detalhada"}`,
+        );
         return;
       }
-      setNotice(`Evento salvo. ${payload.sent ?? 0} e-mail(s) enviado(s)${payload.failed ? ` e ${payload.failed} com falha` : ""}.`);
+      setNotice(
+        `Evento salvo. ${payload.sent ?? 0} e-mail(s) enviado(s)${payload.failed ? ` e ${payload.failed} com falha` : ""}.`,
+      );
     } catch (emailError) {
-      setNotice(`Evento salvo, mas a API de e-mail não respondeu: ${errorMessage(emailError)}`);
+      setNotice(
+        `Evento salvo, mas a API de e-mail não respondeu: ${errorMessage(emailError)}`,
+      );
     }
   };
 
@@ -604,6 +617,61 @@ export default function AgendaPage() {
     }
   };
 
+  const cancelApprovedEvent = async () => {
+    const reason = cancelReason.trim();
+    if (!cancelEvent) return;
+    if (reason.length < 5) {
+      setCancelError("Informe um motivo com pelo menos 5 caracteres.");
+      return;
+    }
+
+    setCancelling(true);
+    setCancelError("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token)
+        throw new Error("Sua sessão expirou. Entre novamente no sistema.");
+
+      const response = await fetch(
+        "/api/events/" + cancelEvent.id + "/cancel",
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + data.session.access_token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reason }),
+        },
+      );
+      const result = (await response.json()) as {
+        error?: string;
+        sent?: number;
+        failed?: number;
+      };
+      if (!response.ok)
+        throw new Error(result.error || "Não foi possível cancelar o evento.");
+
+      setCancelEvent(null);
+      setCancelReason("");
+      await loadEvents();
+      setNotice(
+        result.failed
+          ? "Evento cancelado. " +
+              (result.sent ?? 0) +
+              " e-mail(s) enviado(s) e " +
+              result.failed +
+              " falharam."
+          : "Evento cancelado e " +
+              (result.sent ?? 0) +
+              " e-mail(s) enviado(s).",
+      );
+    } catch (cancelFailure) {
+      setCancelError(errorMessage(cancelFailure));
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const toggleEquipment = (equipment: string) =>
     setForm((current) => {
       if (equipment === "Sem equipamentos")
@@ -755,11 +823,31 @@ export default function AgendaPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
                                 {agendaEvent.thumbnail_url ? (
-                                  <img
-                                    src={agendaEvent.thumbnail_url}
-                                    alt=""
-                                    className="h-10 w-14 rounded object-cover"
-                                  />
+                                  <button
+                                    type="button"
+                                    title="Ampliar imagem do evento"
+                                    aria-label={
+                                      "Ampliar imagem de " + agendaEvent.title
+                                    }
+                                    className="group relative h-10 w-14 shrink-0 overflow-hidden rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    onClick={() =>
+                                      setImagePreview({
+                                        url: agendaEvent.thumbnail_url!,
+                                        alt:
+                                          "Imagem do evento " +
+                                          agendaEvent.title,
+                                      })
+                                    }
+                                  >
+                                    <img
+                                      src={agendaEvent.thumbnail_url}
+                                      alt=""
+                                      className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                                    />
+                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-all group-hover:bg-black/45 group-hover:opacity-100">
+                                      <ZoomIn size={16} />
+                                    </span>
+                                  </button>
                                 ) : (
                                   <div className="flex h-10 w-14 items-center justify-center rounded bg-gray-100">
                                     <ImageIcon size={18} />
@@ -816,11 +904,32 @@ export default function AgendaPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="text-blue-700"
-                                    onClick={() => setParticipantEvent(agendaEvent)}
+                                    onClick={() =>
+                                      setParticipantEvent(agendaEvent)
+                                    }
                                   >
                                     <Users size={17} />
                                   </Button>
                                 )}
+                                {agendaEvent.status === "confirmada" &&
+                                  (profile?.role === "administrador" ||
+                                    agendaEvent.requester_id ===
+                                      profile?.id) && (
+                                    <Button
+                                      title="Cancelar Evento"
+                                      variant="danger"
+                                      size="sm"
+                                      className="gap-1 whitespace-nowrap"
+                                      onClick={() => {
+                                        setCancelEvent(agendaEvent);
+                                        setCancelReason("");
+                                        setCancelError("");
+                                      }}
+                                    >
+                                      <Ban size={16} />
+                                      Cancelar Evento
+                                    </Button>
+                                  )}
                                 {profile?.role === "administrador" &&
                                   agendaEvent.status ===
                                     "aguardando_aprovacao" && (
@@ -1388,6 +1497,103 @@ export default function AgendaPage() {
                   </Button>
                 </DialogFooter>
               </form>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={Boolean(cancelEvent)}
+            onOpenChange={(open) => {
+              if (!open && !cancelling) {
+                setCancelEvent(null);
+                setCancelReason("");
+                setCancelError("");
+              }
+            }}
+          >
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-700">
+                  <Ban size={21} /> Cancelar evento
+                </DialogTitle>
+                <DialogDescription>
+                  Esta ação bloqueará o evento e notificará o administrador, a
+                  recepção e o responsável pelo evento por e-mail.
+                </DialogDescription>
+              </DialogHeader>
+              {cancelEvent && (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+                  <p className="font-semibold text-gray-900">
+                    {cancelEvent.title}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {new Date(
+                      cancelEvent.start_date + "T12:00:00",
+                    ).toLocaleDateString("pt-BR")}{" "}
+                    às {cancelEvent.start_time.slice(0, 5)}
+                  </p>
+                </div>
+              )}
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  Motivo do cancelamento *
+                </span>
+                <textarea
+                  autoFocus
+                  rows={4}
+                  value={cancelReason}
+                  disabled={cancelling}
+                  onChange={(event) => {
+                    setCancelReason(event.target.value);
+                    setCancelError("");
+                  }}
+                  placeholder="Explique o motivo do cancelamento"
+                  className={inputClass}
+                />
+              </label>
+              {cancelError && (
+                <div className="flex gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                  <AlertCircle className="mt-0.5 shrink-0" size={17} />
+                  <span>{cancelError}</span>
+                </div>
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={cancelling}
+                  onClick={() => setCancelEvent(null)}
+                >
+                  Voltar
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  loading={cancelling}
+                  disabled={cancelReason.trim().length < 5}
+                  onClick={() => void cancelApprovedEvent()}
+                >
+                  Confirmar cancelamento
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={Boolean(imagePreview)}
+            onOpenChange={(open) => !open && setImagePreview(null)}
+          >
+            <DialogContent className="max-w-5xl bg-gray-950 p-3">
+              <DialogHeader className="sr-only">
+                <DialogTitle>Imagem ampliada do evento</DialogTitle>
+                <DialogDescription>
+                  Visualização ampliada da imagem do evento.
+                </DialogDescription>
+              </DialogHeader>
+              {imagePreview && (
+                <img
+                  src={imagePreview.url}
+                  alt={imagePreview.alt}
+                  className="max-h-[80vh] w-full rounded-lg object-contain"
+                />
+              )}
             </DialogContent>
           </Dialog>
           {participantEvent && (
