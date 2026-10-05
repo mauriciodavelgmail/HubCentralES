@@ -37,8 +37,12 @@ export default function PublicRegistrationPage() {
     const payload = await response.json();
     setSaving(false);
     if (!response.ok) setError(payload.error);
-    else
+    else if (payload.emailSent)
       setSuccess("Inscrição realizada. Sua credencial foi enviada por e-mail.");
+    else
+      setSuccess(
+        `Inscrição realizada, mas o e-mail não foi enviado: ${payload.emailError || "erro não detalhado"}. Você pode abrir sua credencial pelo link: ${payload.accessUrl}`,
+      );
   };
   return (
     <main className="min-h-screen bg-blue-50 p-4">

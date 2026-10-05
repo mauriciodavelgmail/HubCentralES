@@ -77,6 +77,8 @@ export async function POST(
       .single();
     if (error) throw error;
     const accessUrl = `${request.nextUrl.origin}/participante/${participant.access_link}`;
+    let emailSent = false;
+    let emailError = "";
     try {
       const qr = await QRCode.toBuffer(accessUrl, { width: 500, margin: 2 });
       const messageId = await sendTransactionalEmail({
@@ -97,39 +99,40 @@ export async function POST(
           .from("attendance_list")
           .update({ invitation_status: "enviado" })
           .eq("id", participant.id),
-        db
-          .from("email_deliveries")
-          .insert({
-            event_id: event.id,
-            participant_id: participant.id,
-            recipient_email: email,
-            template: "participant_invitation",
-            status: "enviado",
-            provider_message_id: messageId,
-            sent_at: new Date().toISOString(),
-          }),
+        db.from("email_deliveries").insert({
+          event_id: event.id,
+          participant_id: participant.id,
+          recipient_email: email,
+          template: "participant_invitation",
+          status: "enviado",
+          provider_message_id: messageId,
+          sent_at: new Date().toISOString(),
+        }),
       ]);
-    } catch (emailError) {
+      emailSent = true;
+    } catch (sendError) {
       const message =
-        emailError instanceof Error ? emailError.message : "Falha no envio";
+        sendError instanceof Error ? sendError.message : "Falha no envio";
+      emailError = message;
       await Promise.all([
         db
           .from("attendance_list")
           .update({ invitation_status: "falhou", invitation_error: message })
           .eq("id", participant.id),
-        db
-          .from("email_deliveries")
-          .insert({
-            event_id: event.id,
-            participant_id: participant.id,
-            recipient_email: email,
-            template: "participant_invitation",
-            status: "falhou",
-            error_message: message,
-          }),
+        db.from("email_deliveries").insert({
+          event_id: event.id,
+          participant_id: participant.id,
+          recipient_email: email,
+          template: "participant_invitation",
+          status: "falhou",
+          error_message: message,
+        }),
       ]);
     }
-    return NextResponse.json({ success: true, accessUrl }, { status: 201 });
+    return NextResponse.json(
+      { success: true, accessUrl, emailSent, emailError },
+      { status: 201 },
+    );
   } catch (error) {
     const message =
       error && typeof error === "object" && "message" in error

@@ -7,10 +7,19 @@ export interface EmailAttachment {
   cid?: string;
 }
 
+export function getEmailProvider() {
+  const raw =
+    process.env.EMAIL_PROVIDER || (process.env.GMAIL_USER ? "gmail" : "resend");
+  return raw
+    .trim()
+    .replace(/^EMAIL_PROVIDER\s*=\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 export function getEmailConfigurationError() {
-  const provider = (
-    process.env.EMAIL_PROVIDER || (process.env.GMAIL_USER ? "gmail" : "resend")
-  ).toLowerCase();
+  const provider = getEmailProvider();
   if (!["gmail", "resend"].includes(provider))
     return "EMAIL_PROVIDER deve ser gmail ou resend.";
   const from =
@@ -38,9 +47,7 @@ export async function sendTransactionalEmail(options: {
 }) {
   const configurationError = getEmailConfigurationError();
   if (configurationError) throw new Error(configurationError);
-  const provider = (
-    process.env.EMAIL_PROVIDER || (process.env.GMAIL_USER ? "gmail" : "resend")
-  ).toLowerCase();
+  const provider = getEmailProvider();
   const from =
     process.env.EVENT_EMAIL_FROM ||
     `HubCentral ES+ <${process.env.GMAIL_USER}>`;
