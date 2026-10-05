@@ -39,12 +39,14 @@ type Supply = {
   code: string;
   name: string;
   description: string | null;
+  supplier: string | null;
   current_quantity: number;
   minimum_quantity: number;
   status: string;
   unit: string;
   unit_cost: number | null;
   last_purchase_date: string | null;
+  is_active?: boolean;
 };
 type CartItem = Supply & {
   purchase_quantity: string;
@@ -125,6 +127,21 @@ export default function ComprasPage() {
   const [details, setDetails] = useState<Purchase | null>(null);
   const [cancelling, setCancelling] = useState<Purchase | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [batchPrefillHandled, setBatchPrefillHandled] = useState(false);
+
+  const processSupplyAlerts = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.access_token) return;
+    const response = await fetch("/api/supplies/alerts", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.failed)
+      setNotice((current) =>
+        `${current} Alertas de estoque: ${result.sent ?? 0} e-mail(s) enviado(s) e ${result.failed ?? 0} falha(s).`.trim(),
+      );
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,6 +159,45 @@ export default function ComprasPage() {
     setLoading(false);
   }, []);
   useEffect(() => void load(), [load]);
+  useEffect(() => void processSupplyAlerts(), []);
+
+  useEffect(() => {
+    if (batchPrefillHandled || supplies.length === 0) return;
+    setBatchPrefillHandled(true);
+    const raw = window.sessionStorage.getItem("purchase-prefill-supplies");
+    if (!raw) return;
+    window.sessionStorage.removeItem("purchase-prefill-supplies");
+    try {
+      const ids = JSON.parse(raw) as string[];
+      const selected = supplies.filter(
+        (supply) => ids.includes(supply.id) && supply.is_active !== false,
+      );
+      if (!selected.length) return;
+      const commonSupplier = selected.every(
+        (supply) => supply.supplier === selected[0].supplier,
+      )
+        ? selected[0].supplier || ""
+        : "";
+      setEditing(null);
+      setForm({
+        ...EMPTY_FORM,
+        purchase_type: "insumos",
+        supplier: commonSupplier,
+        description: `Reposição de estoque — ${selected.map((item) => item.name).join(", ")}`,
+      });
+      setCart(
+        selected.map((supply) => ({
+          ...supply,
+          purchase_quantity: "",
+          purchase_unit_cost: "",
+        })),
+      );
+      setFiscalFile(null);
+      setShowForm(true);
+    } catch {
+      window.sessionStorage.removeItem("purchase-prefill-supplies");
+    }
+  }, [batchPrefillHandled, supplies]);
 
   const filtered = useMemo(
     () =>
@@ -194,7 +250,7 @@ export default function ComprasPage() {
       {
         ...supply,
         purchase_quantity: "1",
-        purchase_unit_cost: String(supply.unit_cost ?? ""),
+        purchase_unit_cost: "",
       },
     ]);
     setSupplyToAdd("");
@@ -275,6 +331,7 @@ export default function ComprasPage() {
         setNotice(
           "Pedido emitido e movimentações de estoque registradas com sucesso.",
         );
+        await processSupplyAlerts();
       }
       setShowForm(false);
       await load();
@@ -307,6 +364,7 @@ export default function ComprasPage() {
     setCancelling(null);
     setCancelReason("");
     setNotice("Pedido cancelado, estoque estornado e histórico registrado.");
+    await processSupplyAlerts();
     await load();
   };
 
@@ -860,6 +918,7 @@ function CartSection({
         >
           <option value="">Selecione um insumo</option>
           {supplies
+            .filter((supply) => supply.is_active !== false)
             .filter((s) => !cart.some((item) => item.id === s.id))
             .map((s) => (
               <option key={s.id} value={s.id}>

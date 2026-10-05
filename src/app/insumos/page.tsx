@@ -41,6 +41,8 @@ import {
   AlertTriangle,
   Package,
   History,
+  PackagePlus,
+  PowerOff,
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -53,10 +55,11 @@ const CATEGORIES = [
   "outro",
 ];
 const STATUSES = ["normal", "baixo", "critico"];
+type ManagedSupply = Supply & { is_active?: boolean };
 
 export default function InsumosPage() {
   const { user, profile } = useAuth();
-  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [supplies, setSupplies] = useState<ManagedSupply[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,6 +83,24 @@ export default function InsumosPage() {
     }>
   >([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const canManage = ["administrador", "administracao"].includes(
+    profile?.role || "",
+  );
+
+  const processSupplyAlerts = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.access_token) return;
+    const response = await fetch("/api/supplies/alerts", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.failed)
+      setError(
+        `Estoque salvo, mas houve falha em ${result.failed ?? 0} e-mail(s) de alerta.`,
+      );
+  };
 
   const [formData, setFormData] = useState({
     name: "",
@@ -98,13 +119,14 @@ export default function InsumosPage() {
   // Load supplies
   useEffect(() => {
     loadSupplies();
+    void processSupplyAlerts();
   }, []);
 
   const loadSupplies = async () => {
     try {
       setLoading(true);
       const data = await getSupplies();
-      setSupplies(data);
+      setSupplies(data as ManagedSupply[]);
       setError("");
     } catch (err: any) {
       setError("Erro ao carregar insumos: " + err.message);
@@ -114,7 +136,7 @@ export default function InsumosPage() {
     }
   };
 
-  const handleOpenDialog = (supply?: Supply) => {
+  const handleOpenDialog = (supply?: ManagedSupply) => {
     if (supply) {
       setEditingId(supply.id);
       setFormData({
@@ -171,6 +193,7 @@ export default function InsumosPage() {
       await loadSupplies();
       setShowDialog(false);
       setError("");
+      await processSupplyAlerts();
     } catch (err: any) {
       setError("Erro ao salvar insumo: " + err.message);
     }
@@ -187,7 +210,7 @@ export default function InsumosPage() {
     }
   };
 
-  const openLedger = async (supply: Supply) => {
+  const openLedger = async (supply: ManagedSupply) => {
     setLedgerSupply(supply);
     setLedgerLoading(true);
     const { data, error: ledgerError } = await supabase
@@ -228,6 +251,42 @@ export default function InsumosPage() {
       })),
     );
     setLedgerLoading(false);
+  };
+
+  const toggleSelection = (id: string) =>
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const deactivateSelected = async () => {
+    const ids = [...selectedIds];
+    if (
+      !ids.length ||
+      !confirm(`Desativar ${ids.length} item(ns) selecionado(s)?`)
+    )
+      return;
+    const { error: deactivateError } = await supabase.rpc(
+      "deactivate_supplies",
+      { p_supply_ids: ids },
+    );
+    if (deactivateError) {
+      setError("Erro ao desativar itens: " + deactivateError.message);
+      return;
+    }
+    setSelectedIds(new Set());
+    await loadSupplies();
+  };
+
+  const createPurchaseFromSelected = () => {
+    if (!selectedIds.size) return;
+    window.sessionStorage.setItem(
+      "purchase-prefill-supplies",
+      JSON.stringify([...selectedIds]),
+    );
+    window.location.assign("/compras");
   };
 
   const filteredSupplies = supplies.filter((supply) => {
@@ -374,13 +433,65 @@ export default function InsumosPage() {
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle>{filteredSupplies.length} Insumo(s)</CardTitle>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <CardTitle>{filteredSupplies.length} Insumo(s)</CardTitle>
+                  {canManage && selectedIds.size > 0 && (
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <span className="self-center text-sm font-medium text-blue-700">
+                        {selectedIds.size} selecionado(s)
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={createPurchaseFromSelected}
+                      >
+                        <PackagePlus size={16} /> Gerar pedido de compras
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => void deactivateSelected()}
+                      >
+                        <PowerOff size={16} /> Desativar item(ns)
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
+                        <th className="w-12 px-4 py-3 text-left">
+                          <input
+                            type="checkbox"
+                            aria-label="Selecionar todos os insumos ativos"
+                            disabled={!canManage}
+                            checked={
+                              filteredSupplies.filter(
+                                (item) => item.is_active !== false,
+                              ).length > 0 &&
+                              filteredSupplies
+                                .filter((item) => item.is_active !== false)
+                                .every((item) => selectedIds.has(item.id))
+                            }
+                            onChange={(event) => {
+                              const activeIds = filteredSupplies
+                                .filter((item) => item.is_active !== false)
+                                .map((item) => item.id);
+                              setSelectedIds((current) => {
+                                const next = new Set(current);
+                                activeIds.forEach((id) =>
+                                  event.target.checked
+                                    ? next.add(id)
+                                    : next.delete(id),
+                                );
+                                return next;
+                              });
+                            }}
+                          />
+                        </th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">
                           Nome
                         </th>
@@ -405,8 +516,19 @@ export default function InsumosPage() {
                       {filteredSupplies.map((supply) => (
                         <tr
                           key={supply.id}
-                          className="border-b border-gray-100 hover:bg-gray-50"
+                          className={`border-b border-gray-100 hover:bg-gray-50 ${supply.is_active === false ? "opacity-55" : ""}`}
                         >
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              aria-label={`Selecionar ${supply.name}`}
+                              disabled={
+                                !canManage || supply.is_active === false
+                              }
+                              checked={selectedIds.has(supply.id)}
+                              onChange={() => toggleSelection(supply.id)}
+                            />
+                          </td>
                           <td className="px-4 py-3">
                             <div>
                               <p className="font-medium text-gray-900">
@@ -446,6 +568,9 @@ export default function InsumosPage() {
                               >
                                 {supply.status}
                               </Badge>
+                              {supply.is_active === false && (
+                                <Badge variant="secondary">inativo</Badge>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -454,6 +579,7 @@ export default function InsumosPage() {
                                 variant="ghost"
                                 size="sm"
                                 title="Razão do item"
+                                disabled={selectedIds.size > 1}
                                 onClick={() => void openLedger(supply)}
                                 className="text-blue-700 hover:bg-blue-50"
                               >
