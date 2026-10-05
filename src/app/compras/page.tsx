@@ -39,6 +39,7 @@ type Supply = {
   code: string;
   name: string;
   description: string | null;
+  category: string;
   supplier: string | null;
   current_quantity: number;
   minimum_quantity: number;
@@ -52,6 +53,22 @@ type CartItem = Supply & {
   purchase_quantity: string;
   purchase_unit_cost: string;
 };
+
+type StockStatus = "baixo" | "critico" | "normal";
+
+function getStockStatus(supply: Supply): StockStatus {
+  if (
+    supply.minimum_quantity > 0 &&
+    supply.current_quantity <= supply.minimum_quantity * 0.5
+  )
+    return "critico";
+  if (
+    supply.minimum_quantity > 0 &&
+    supply.current_quantity <= supply.minimum_quantity
+  )
+    return "baixo";
+  return "normal";
+}
 type PurchaseItem = {
   id: string;
   supply_id: string;
@@ -901,6 +918,39 @@ function CartSection({
   addSupply: () => void;
   total: number;
 }) {
+  const [supplySearch, setSupplySearch] = useState("");
+  const [statusFilters, setStatusFilters] = useState<Set<StockStatus>>(
+    new Set(["baixo", "critico", "normal"]),
+  );
+  const availableSupplies = useMemo(() => {
+    const term = supplySearch.trim().toLocaleLowerCase("pt-BR");
+    return supplies.filter((supply) => {
+      if (supply.is_active === false) return false;
+      if (cart.some((item) => item.id === supply.id)) return false;
+      if (!statusFilters.has(getStockStatus(supply))) return false;
+      if (!term) return true;
+      return [supply.code, supply.name, supply.description, supply.category]
+        .filter(Boolean)
+        .some((value) => value!.toLocaleLowerCase("pt-BR").includes(term));
+    });
+  }, [cart, statusFilters, supplies, supplySearch]);
+
+  useEffect(() => {
+    if (
+      supplyToAdd &&
+      !availableSupplies.some((supply) => supply.id === supplyToAdd)
+    )
+      setSupplyToAdd("");
+  }, [availableSupplies, setSupplyToAdd, supplyToAdd]);
+
+  const toggleStatus = (status: StockStatus) =>
+    setStatusFilters((current) => {
+      const next = new Set(current);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+
   return (
     <section className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/30 p-4">
       <div>
@@ -910,6 +960,67 @@ function CartSection({
           valor atual.
         </p>
       </div>
+      <div className="rounded-xl border border-blue-100 bg-white p-3">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <Field label="Buscar item por código, descrição ou categoria">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={17}
+              />
+              <input
+                type="search"
+                className={inputClass + " pl-10"}
+                value={supplySearch}
+                onChange={(event) => setSupplySearch(event.target.value)}
+                placeholder="Ex.: MNT001, lâmpada ou manutenção"
+              />
+            </div>
+          </Field>
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium text-gray-700">
+              Filtrar por status
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  [
+                    "baixo",
+                    "Baixo",
+                    "border-yellow-300 bg-yellow-50 text-yellow-800",
+                  ],
+                  [
+                    "critico",
+                    "Crítico",
+                    "border-red-300 bg-red-50 text-red-800",
+                  ],
+                  [
+                    "normal",
+                    "Normal",
+                    "border-green-300 bg-green-50 text-green-800",
+                  ],
+                ] as Array<[StockStatus, string, string]>
+              ).map(([value, label, colors]) => (
+                <label
+                  key={value}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${statusFilters.has(value) ? colors : "border-gray-200 bg-gray-50 text-gray-500"}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={statusFilters.has(value)}
+                    onChange={() => toggleStatus(value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          {availableSupplies.length} item(ns) disponível(is) com os filtros
+          atuais.
+        </p>
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <select
           className={inputClass}
@@ -917,14 +1028,11 @@ function CartSection({
           onChange={(e) => setSupplyToAdd(e.target.value)}
         >
           <option value="">Selecione um insumo</option>
-          {supplies
-            .filter((supply) => supply.is_active !== false)
-            .filter((s) => !cart.some((item) => item.id === s.id))
-            .map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.code} — {s.name}
-              </option>
-            ))}
+          {availableSupplies.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.code} — {s.description || s.name} ({s.category})
+            </option>
+          ))}
         </select>
         <Button type="button" disabled={!supplyToAdd} onClick={addSupply}>
           <ShoppingCart size={17} /> Adicionar
@@ -948,7 +1056,7 @@ function CartSection({
                   label="Saldo atual / mínimo"
                   value={`${item.current_quantity} / ${item.minimum_quantity} ${item.unit}`}
                 />
-                <ReadOnly label="Status" value={item.status} />
+                <ReadOnly label="Status" value={getStockStatus(item)} />
                 <ReadOnly label="Último valor" value={money(item.unit_cost)} />
                 <ReadOnly
                   label="Última compra"
