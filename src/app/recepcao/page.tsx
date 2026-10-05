@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { ProtectedRoute } from "@/lib/auth/protected-route";
 import { supabase } from "@/lib/supabase/auth";
+import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
 
 interface EventItem {
   id: string;
@@ -41,8 +42,7 @@ export default function ReceptionPage() {
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scanTimer = useRef<number | null>(null);
+  const scannerControls = useRef<IScannerControls | null>(null);
   const loadEvents = async () => {
     const today = new Date().toLocaleDateString("en-CA");
     const { data, error: queryError } = await supabase
@@ -108,40 +108,38 @@ export default function ReceptionPage() {
     stopScanner();
   };
   const stopScanner = () => {
-    if (scanTimer.current) window.clearInterval(scanTimer.current);
-    scanTimer.current = null;
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+    scannerControls.current?.stop();
+    scannerControls.current = null;
+    const stream = videoRef.current?.srcObject;
+    if (stream instanceof MediaStream)
+      stream.getTracks().forEach((track) => track.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
     setScanning(false);
   };
   const startScanner = async () => {
     setError("");
-    const Detector = (window as any).BarcodeDetector;
-    if (!Detector) {
-      setError(
-        "Este navegador não oferece leitura nativa de QR Code. Use Chrome/Edge atualizado ou confirme manualmente.",
-      );
-      return;
-    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      const detector = new Detector({ formats: ["qr_code"] });
+      if (!navigator.mediaDevices?.getUserMedia)
+        throw new Error(
+          "O navegador não permite acesso à câmera neste contexto.",
+        );
+      if (!videoRef.current)
+        throw new Error("Visualização da câmera indisponível.");
+      stopScanner();
+      const reader = new BrowserQRCodeReader();
       setScanning(true);
-      scanTimer.current = window.setInterval(async () => {
-        if (!videoRef.current) return;
-        const codes = await detector.detect(videoRef.current).catch(() => []);
-        if (codes[0]?.rawValue) await checkToken(codes[0].rawValue);
-      }, 700);
-    } catch {
+      scannerControls.current = await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: "environment" } }, audio: false },
+        videoRef.current,
+        (result) => {
+          if (!result) return;
+          scannerControls.current?.stop();
+          void checkToken(result.getText());
+        },
+      );
+    } catch (cameraError) {
       setError(
-        "Não foi possível acessar a câmera. Verifique a permissão do navegador.",
+        `Não foi possível acessar a câmera: ${cameraError instanceof Error ? cameraError.message : "verifique a permissão do navegador"}.`,
       );
       stopScanner();
     }
