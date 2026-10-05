@@ -61,11 +61,14 @@ export async function POST(
     let query = supabase
       .from("attendance_list")
       .select("id,participant_name,participant_email,access_link")
-      .eq("event_id", eventId);
+      .eq("event_id", eventId)
+      .neq("invitation_status", "enviado");
     if (Array.isArray(participantIds) && participantIds.length)
       query = query.in("id", participantIds);
     const { data: participants, error } = await query;
     if (error) throw error;
+    if (!participants?.length)
+      return NextResponse.json({ sent: 0, failed: 0, skipped: true });
     const configurationError = getEmailConfigurationError();
     let sent = 0;
     const failures: Array<{ id: string; error: string }> = [];
@@ -97,17 +100,15 @@ export async function POST(
             .from("attendance_list")
             .update({ invitation_status: "enviado", invitation_error: null })
             .eq("id", participant.id),
-          supabase
-            .from("email_deliveries")
-            .insert({
-              event_id: eventId,
-              participant_id: participant.id,
-              recipient_email: participant.participant_email,
-              template: "participant_invitation",
-              status: "enviado",
-              provider_message_id: messageId,
-              sent_at: new Date().toISOString(),
-            }),
+          supabase.from("email_deliveries").insert({
+            event_id: eventId,
+            participant_id: participant.id,
+            recipient_email: participant.participant_email,
+            template: "participant_invitation",
+            status: "enviado",
+            provider_message_id: messageId,
+            sent_at: new Date().toISOString(),
+          }),
         ]);
         sent += 1;
       } catch (sendError) {
@@ -122,16 +123,14 @@ export async function POST(
               invitation_error: message,
             })
             .eq("id", participant.id),
-          supabase
-            .from("email_deliveries")
-            .insert({
-              event_id: eventId,
-              participant_id: participant.id,
-              recipient_email: participant.participant_email,
-              template: "participant_invitation",
-              status: configurationError ? "ignorado" : "falhou",
-              error_message: message,
-            }),
+          supabase.from("email_deliveries").insert({
+            event_id: eventId,
+            participant_id: participant.id,
+            recipient_email: participant.participant_email,
+            template: "participant_invitation",
+            status: configurationError ? "ignorado" : "falhou",
+            error_message: message,
+          }),
         ]);
       }
     }

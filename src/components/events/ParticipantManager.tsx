@@ -115,7 +115,9 @@ export function ParticipantManager({
     const payload = await response.json();
     setNotice(
       response.ok
-        ? `${payload.sent} convite(s) enviado(s); ${payload.failed} falha(s).`
+        ? payload.skipped
+          ? "Nenhum convite pendente ou com falha para enviar."
+          : `${payload.sent} convite(s) enviado(s); ${payload.failed} falha(s).`
         : payload.error || payload.failures?.[0]?.error || "Falha no envio.",
     );
     await load();
@@ -438,7 +440,7 @@ export function ParticipantManager({
               onClick={() => void notify(participants.map((p) => p.id))}
             >
               <Mail size={16} />
-              Reenviar convites
+              Tentar pendentes e falhos
             </Button>
           </div>
         </div>
