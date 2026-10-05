@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
+import { getEmailProvider } from "@/lib/email/server";
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -81,15 +82,7 @@ export async function POST(request: NextRequest) {
     ];
     if (!emails.length) return NextResponse.json({ sent: 0 });
 
-    const provider = (
-      process.env.EMAIL_PROVIDER ||
-      (process.env.GMAIL_USER ? "gmail" : "resend")
-    )
-      .trim()
-      .replace(/^EMAIL_PROVIDER\s*=\s*/i, "")
-      .replace(/^["']|["']$/g, "")
-      .trim()
-      .toLowerCase();
+    const provider = getEmailProvider();
     if (!["gmail", "resend"].includes(provider))
       return NextResponse.json(
         { error: "EMAIL_PROVIDER deve ser gmail ou resend." },
@@ -110,17 +103,15 @@ export async function POST(request: NextRequest) {
           ? "RESEND_API_KEY ou EVENT_EMAIL_FROM não configurado"
           : "";
     if (configurationError) {
-      await supabase
-        .from("email_deliveries")
-        .insert(
-          emails.map((email) => ({
-            event_id: event.id,
-            recipient_email: email,
-            template: action,
-            status: "ignorado",
-            error_message: configurationError,
-          })),
-        );
+      await supabase.from("email_deliveries").insert(
+        emails.map((email) => ({
+          event_id: event.id,
+          recipient_email: email,
+          template: action,
+          status: "ignorado",
+          error_message: configurationError,
+        })),
+      );
       return NextResponse.json(
         { error: "Envio de e-mail ainda não configurado na Vercel.", sent: 0 },
         { status: 503 },
@@ -177,14 +168,12 @@ export async function POST(request: NextRequest) {
           messageId = payload.id ?? null;
         }
         sent += 1;
-        await supabase
-          .from("email_deliveries")
-          .insert({
-            ...delivery,
-            status: "enviado",
-            provider_message_id: messageId,
-            sent_at: new Date().toISOString(),
-          });
+        await supabase.from("email_deliveries").insert({
+          ...delivery,
+          status: "enviado",
+          provider_message_id: messageId,
+          sent_at: new Date().toISOString(),
+        });
       } catch (sendError) {
         const message =
           sendError instanceof Error

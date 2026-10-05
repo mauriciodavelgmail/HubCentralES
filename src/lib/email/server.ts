@@ -10,12 +10,17 @@ export interface EmailAttachment {
 export function getEmailProvider() {
   const raw =
     process.env.EMAIL_PROVIDER || (process.env.GMAIL_USER ? "gmail" : "resend");
-  return raw
+  const normalized = raw
     .trim()
     .replace(/^EMAIL_PROVIDER\s*=\s*/i, "")
     .replace(/^["']|["']$/g, "")
     .trim()
     .toLowerCase();
+  if (normalized.includes("gmail")) return "gmail";
+  if (normalized.includes("resend")) return "resend";
+  if (process.env.GMAIL_USER || process.env.GMAIL_APP_PASSWORD) return "gmail";
+  if (process.env.RESEND_API_KEY) return "resend";
+  return normalized;
 }
 
 export function getEmailConfigurationError() {
