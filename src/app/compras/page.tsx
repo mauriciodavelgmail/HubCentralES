@@ -145,6 +145,7 @@ export default function ComprasPage() {
   const [cancelling, setCancelling] = useState<Purchase | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [batchPrefillHandled, setBatchPrefillHandled] = useState(false);
+  const [purchaseLinkHandled, setPurchaseLinkHandled] = useState(false);
 
   const processSupplyAlerts = async () => {
     const { data } = await supabase.auth.getSession();
@@ -177,6 +178,17 @@ export default function ComprasPage() {
   }, []);
   useEffect(() => void load(), [load]);
   useEffect(() => void processSupplyAlerts(), []);
+
+  useEffect(() => {
+    if (purchaseLinkHandled || purchases.length === 0) return;
+    const purchaseId = new URLSearchParams(window.location.search).get(
+      "pedido",
+    );
+    setPurchaseLinkHandled(true);
+    if (!purchaseId) return;
+    const purchase = purchases.find((item) => item.id === purchaseId);
+    if (purchase) setDetails(purchase);
+  }, [purchaseLinkHandled, purchases]);
 
   useEffect(() => {
     if (batchPrefillHandled || supplies.length === 0) return;

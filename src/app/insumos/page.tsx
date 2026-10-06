@@ -43,6 +43,12 @@ import {
   History,
   PackagePlus,
   PowerOff,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Clock3,
+  ExternalLink,
+  FileText,
+  UserRound,
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -93,10 +99,18 @@ export default function InsumosPage() {
       reason: string | null;
       created_at: string;
       created_by: string | null;
+      purchase_id: string | null;
+      requisition_id: string | null;
       actor_name?: string;
+      document_number: string;
+      document_href: string;
     }>
   >([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [highlightedMovement, setHighlightedMovement] = useState<string | null>(
+    null,
+  );
+  const [movementLinkHandled, setMovementLinkHandled] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const canManage = ["administrador", "administracao"].includes(
     profile?.role || "",
@@ -224,13 +238,17 @@ export default function InsumosPage() {
     }
   };
 
-  const openLedger = async (supply: ManagedSupply) => {
+  const openLedger = async (
+    supply: ManagedSupply,
+    movementToHighlight?: string,
+  ) => {
     setLedgerSupply(supply);
+    setHighlightedMovement(movementToHighlight ?? null);
     setLedgerLoading(true);
     const { data, error: ledgerError } = await supabase
       .from("supply_movements")
       .select(
-        "id,movement_type,operation_type,quantity_moved,balance_before,balance_after,reason,created_at,created_by",
+        "id,movement_type,operation_type,quantity_moved,balance_before,balance_after,reason,created_at,created_by,purchase_id,requisition_id",
       )
       .eq("supply_id", supply.id)
       .order("created_at", { ascending: false });
@@ -250,22 +268,96 @@ export default function InsumosPage() {
           .select("user_id,full_name,email")
           .in("user_id", userIds)
       : { data: [] };
+    const purchaseIds = [
+      ...new Set(
+        movements
+          .map((movement) => movement.purchase_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const requisitionIds = [
+      ...new Set(
+        movements
+          .map((movement) => movement.requisition_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const [{ data: purchaseDocuments }, { data: requisitionDocuments }] =
+      await Promise.all([
+        purchaseIds.length
+          ? supabase
+              .from("purchases")
+              .select("id,purchase_number")
+              .in("id", purchaseIds)
+          : Promise.resolve({ data: [] }),
+        requisitionIds.length
+          ? supabase
+              .from("supply_requisitions")
+              .select("id,requisition_number")
+              .in("id", requisitionIds)
+          : Promise.resolve({ data: [] }),
+      ]);
     const actorNames = new Map(
       (actors ?? []).map((actor) => [
         actor.user_id,
         actor.full_name || actor.email,
       ]),
     );
+    const purchaseNumbers = new Map(
+      (purchaseDocuments ?? []).map((purchase) => [
+        purchase.id,
+        purchase.purchase_number,
+      ]),
+    );
+    const requisitionNumbers = new Map(
+      (requisitionDocuments ?? []).map((requisition) => [
+        requisition.id,
+        requisition.requisition_number,
+      ]),
+    );
     setLedger(
-      movements.map((movement) => ({
-        ...movement,
-        actor_name: movement.created_by
-          ? actorNames.get(movement.created_by)
-          : undefined,
-      })),
+      movements.map((movement) => {
+        const purchaseNumber = movement.purchase_id
+          ? purchaseNumbers.get(movement.purchase_id)
+          : null;
+        const requisitionNumber = movement.requisition_id
+          ? requisitionNumbers.get(movement.requisition_id)
+          : null;
+        return {
+          ...movement,
+          actor_name: movement.created_by
+            ? actorNames.get(movement.created_by)
+            : undefined,
+          document_number:
+            purchaseNumber ||
+            requisitionNumber ||
+            `MOV-${movement.id.slice(0, 8).toUpperCase()}`,
+          document_href: movement.purchase_id
+            ? `/compras?pedido=${movement.purchase_id}`
+            : `/insumos?movimento=${movement.id}`,
+        };
+      }),
     );
     setLedgerLoading(false);
   };
+
+  useEffect(() => {
+    if (movementLinkHandled || supplies.length === 0) return;
+    const movementId = new URLSearchParams(window.location.search).get(
+      "movimento",
+    );
+    setMovementLinkHandled(true);
+    if (!movementId) return;
+    void supabase
+      .from("supply_movements")
+      .select("supply_id")
+      .eq("id", movementId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const supply = supplies.find((item) => item.id === data?.supply_id);
+        if (supply) void openLedger(supply, movementId);
+      });
+  }, [movementLinkHandled, supplies]);
 
   const toggleSelection = (id: string) =>
     setSelectedIds((current) => {
@@ -847,13 +939,28 @@ export default function InsumosPage() {
             open={Boolean(ledgerSupply)}
             onOpenChange={(open) => !open && setLedgerSupply(null)}
           >
-            <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Razão do item — {ledgerSupply?.name}</DialogTitle>
-                <DialogDescription>
-                  Histórico permanente de entradas, saídas e estornos de
-                  compras.
+            <DialogContent className="max-h-[94dvh] max-w-4xl overflow-y-auto bg-slate-50">
+              <DialogHeader className="rounded-2xl bg-gradient-to-r from-blue-700 to-cyan-600 p-5 text-white shadow-sm">
+                <DialogTitle className="text-xl text-white">
+                  Razão do item
+                </DialogTitle>
+                <DialogDescription className="text-blue-50">
+                  Roadmap completo e rastreável de todas as movimentações.
                 </DialogDescription>
+                {ledgerSupply && (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                    <LedgerSummary label="Insumo" value={ledgerSupply.name} />
+                    <LedgerSummary label="Código" value={ledgerSupply.code} />
+                    <LedgerSummary
+                      label="Saldo atual"
+                      value={`${ledgerSupply.current_quantity} ${ledgerSupply.unit}`}
+                    />
+                    <LedgerSummary
+                      label="Estoque mínimo"
+                      value={`${ledgerSupply.minimum_quantity} ${ledgerSupply.unit}`}
+                    />
+                  </div>
+                )}
               </DialogHeader>
               {ledgerLoading ? (
                 <div className="flex justify-center p-10">
@@ -864,49 +971,108 @@ export default function InsumosPage() {
                   Nenhuma movimentação registrada.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {ledger.map((movement) => (
-                    <div key={movement.id} className="rounded-xl border p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Badge
-                          variant={
-                            movement.movement_type === "entrada"
-                              ? "success"
-                              : "warning"
-                          }
+                <div className="relative ml-3 space-y-0 border-l-2 border-slate-200 py-2 sm:ml-5">
+                  {ledger.map((movement, index) => {
+                    const incoming = movement.movement_type === "entrada";
+                    return (
+                      <article
+                        id={`movement-${movement.id}`}
+                        key={movement.id}
+                        className={`relative pb-7 pl-8 sm:pl-10 ${highlightedMovement === movement.id ? "scroll-mt-4" : ""}`}
+                      >
+                        <span
+                          className={`absolute -left-[18px] top-1 flex h-9 w-9 items-center justify-center rounded-full border-4 border-slate-50 text-white shadow-sm ${incoming ? "bg-emerald-500" : "bg-orange-500"}`}
                         >
-                          {movement.operation_type?.replaceAll("_", " ") ||
-                            movement.movement_type}
-                        </Badge>
-                        <time className="text-xs text-gray-500">
-                          {new Date(movement.created_at).toLocaleString(
-                            "pt-BR",
+                          {incoming ? (
+                            <ArrowDownToLine size={17} />
+                          ) : (
+                            <ArrowUpFromLine size={17} />
                           )}
-                        </time>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-700">
-                        {movement.reason || "Movimentação de estoque"}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-4 text-sm">
-                        <span>
-                          Quantidade: <strong>{movement.quantity_moved}</strong>
                         </span>
-                        <span>
-                          Saldo:{" "}
-                          <strong>
-                            {movement.balance_before ?? "—"} →{" "}
-                            {movement.balance_after ?? "—"}
-                          </strong>
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs text-gray-500">
-                        Usuário:{" "}
-                        {movement.actor_name ||
-                          movement.created_by ||
-                          "não identificado"}
-                      </p>
-                    </div>
-                  ))}
+                        <div
+                          className={`rounded-2xl border bg-white p-4 shadow-sm transition sm:p-5 ${highlightedMovement === movement.id ? "border-blue-500 ring-4 ring-blue-100" : "border-slate-200 hover:border-blue-200 hover:shadow-md"}`}
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={incoming ? "success" : "warning"}>
+                                {incoming ? "Entrada" : "Saída"}
+                              </Badge>
+                              <span className="text-sm font-semibold capitalize text-slate-700">
+                                {movement.operation_type?.replaceAll(
+                                  "_",
+                                  " ",
+                                ) || "Movimentação de estoque"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                              <Clock3 size={14} />
+                              <time>
+                                {new Date(movement.created_at).toLocaleString(
+                                  "pt-BR",
+                                )}
+                              </time>
+                            </div>
+                          </div>
+
+                          <a
+                            href={movement.document_href}
+                            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 hover:text-blue-800"
+                          >
+                            <FileText size={16} />
+                            Documento {movement.document_number}
+                            <ExternalLink size={14} />
+                          </a>
+
+                          <p className="mt-4 text-sm leading-relaxed text-slate-700">
+                            {movement.reason || "Movimentação de estoque"}
+                          </p>
+
+                          <div className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-3">
+                            <div>
+                              <p className="text-xs text-slate-500">
+                                Movimento
+                              </p>
+                              <p
+                                className={`text-lg font-bold ${incoming ? "text-emerald-700" : "text-orange-700"}`}
+                              >
+                                {incoming ? "+" : "−"}
+                                {movement.quantity_moved}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500">
+                                Saldo anterior
+                              </p>
+                              <p className="text-lg font-bold text-slate-800">
+                                {movement.balance_before ?? "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500">
+                                Novo saldo
+                              </p>
+                              <p className="text-lg font-bold text-blue-700">
+                                {movement.balance_after ?? "—"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                            <UserRound size={14} />
+                            <span>Responsável:</span>
+                            <strong className="text-slate-700">
+                              {movement.actor_name ||
+                                movement.created_by ||
+                                "não identificado"}
+                            </strong>
+                            <span className="ml-auto text-slate-400">
+                              #{ledger.length - index}
+                            </span>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               )}
               <DialogFooter>
@@ -919,5 +1085,21 @@ export default function InsumosPage() {
         </div>
       </MainLayout>
     </ProtectedRoute>
+  );
+}
+
+function LedgerSummary({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white/15 px-3 py-2 backdrop-blur-sm">
+      <p className="text-[11px] uppercase tracking-wide text-blue-100">
+        {label}
+      </p>
+      <p
+        className="mt-0.5 truncate text-sm font-semibold text-white"
+        title={value}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
