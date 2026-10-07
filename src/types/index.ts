@@ -2,32 +2,63 @@
 // ENUMS AND TYPES
 // =============================================================================
 
-export type UserRole = 'administrador' | 'administracao' | 'recepcao' | 'manutencao' | 'limpeza' | 'visitante';
+export type UserRole =
+  | "administrador"
+  | "administracao"
+  | "recepcao"
+  | "manutencao"
+  | "limpeza"
+  | "visitante";
 
-export type OccurrenceStatus = 'aberta' | 'em_analise' | 'em_execucao' | 'resolvida' | 'cancelada';
-export type OccurrencePriority = 'baixa' | 'media' | 'alta' | 'critica';
-export type OccurrenceCategory = 'infraestrutura' | 'limpeza' | 'equipamentos' | 'evento' | 'seguranca' | 'tecnologia' | 'manutencao' | 'outros';
+export type OccurrenceStatus =
+  "aberta" | "em_analise" | "em_execucao" | "resolvida" | "cancelada";
+export type OccurrencePriority = "baixa" | "media" | "alta" | "critica";
+export type OccurrenceCategory =
+  | "infraestrutura"
+  | "limpeza"
+  | "equipamentos"
+  | "evento"
+  | "seguranca"
+  | "tecnologia"
+  | "manutencao"
+  | "outros";
 
-export type DocumentStatus = 'ativo' | 'vencendo' | 'vencido' | 'arquivado';
-export type DocumentCategory = 
-  | 'contratos'
-  | 'editais'
-  | 'pops'
-  | 'atas'
-  | 'normas'
-  | 'relatorios'
-  | 'comunicacao_institucional'
-  | 'ocorrencias'
-  | 'documentos_fiscais'
-  | 'patrimonio';
+export type DocumentStatus = "ativo" | "vencendo" | "vencido" | "arquivado";
+export type DocumentCategory =
+  | "contratos"
+  | "editais"
+  | "pops"
+  | "atas"
+  | "normas"
+  | "relatorios"
+  | "comunicacao_institucional"
+  | "ocorrencias"
+  | "documentos_fiscais"
+  | "patrimonio";
 
-export type EventStatus = 'aguardando_aprovacao' | 'confirmada' | 'cancelada' | 'realizada';
-export type EventType = 'workshop' | 'palestra' | 'encontro' | 'reuniao' | 'outros';
-export type AvailableSpace = 'auditorio' | 'lab_maker' | 'sala_criativa' | 'coworking' | 'hall' | 'espaco_multiuso';
+export type EventStatus =
+  "aguardando_aprovacao" | "confirmada" | "cancelada" | "realizada";
+export type EventType =
+  "workshop" | "palestra" | "encontro" | "reuniao" | "outros";
+export type AvailableSpace =
+  | "auditorio"
+  | "lab_maker"
+  | "sala_criativa"
+  | "coworking"
+  | "hall"
+  | "espaco_multiuso";
 
-export type SupplyCategory = 'limpeza' | 'escritorio' | 'evento' | 'manutencao' | 'tecnologia' | 'consumo';
-export type EquipmentStatus = 'disponivel' | 'em_uso' | 'em_manutencao' | 'indisponivel' | 'baixado';
-export type PurchaseStatus = 'solicitacao' | 'aprovacao' | 'cotacao' | 'compra_realizada' | 'recebimento' | 'concluida' | 'cancelada';
+export type SupplyCategory = string;
+export type EquipmentStatus =
+  "disponivel" | "em_uso" | "em_manutencao" | "indisponivel" | "baixado";
+export type PurchaseStatus =
+  | "solicitacao"
+  | "aprovacao"
+  | "cotacao"
+  | "compra_realizada"
+  | "recebimento"
+  | "concluida"
+  | "cancelada";
 
 // =============================================================================
 // MAIN ENTITIES
@@ -225,7 +256,7 @@ export interface Supply {
 export interface SupplyMovement {
   id: string;
   supply_id: string;
-  movement_type: 'entrada' | 'saida';
+  movement_type: "entrada" | "saida";
   quantity_moved: number;
   reason?: string;
   requisition_id?: string;
@@ -368,7 +399,7 @@ export interface PaginationParams {
   page: number;
   limit: number;
   sort?: string;
-  order?: 'asc' | 'desc';
+  order?: "asc" | "desc";
 }
 
 export interface FilterParams {

@@ -56,15 +56,6 @@ import {
   MapPin,
 } from "lucide-react";
 
-const CATEGORIES = [
-  "limpeza",
-  "manutencao",
-  "administrativo",
-  "tecnologia",
-  "seguranca",
-  "higiene",
-  "outro",
-];
 const STATUSES = ["normal", "baixo", "critico"];
 type ManagedSupply = Supply & {
   is_active?: boolean;
@@ -76,6 +67,12 @@ type StorageLocation = {
   id: string;
   location_code: string;
   description: string;
+  status: string;
+};
+type SupplyCategory = {
+  id: string;
+  category_key: string;
+  name: string;
   status: string;
 };
 type Requisition = {
@@ -152,9 +149,21 @@ export default function InsumosPage() {
   >({});
   const [locations, setLocations] = useState<StorageLocation[]>([]);
   const [showLocationForm, setShowLocationForm] = useState(false);
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(
+    null,
+  );
   const [locationForm, setLocationForm] = useState({
     location_code: "",
     description: "",
+    status: "ativo",
+  });
+  const [categories, setCategories] = useState<SupplyCategory[]>([]);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null,
+  );
+  const [categoryForm, setCategoryForm] = useState({
+    name: "",
     status: "ativo",
   });
   const [itemPhoto, setItemPhoto] = useState<File | null>(null);
@@ -207,12 +216,17 @@ export default function InsumosPage() {
       setLoading(true);
       const data = await getSupplies();
       setSupplies(data as ManagedSupply[]);
-      const [{ data: pending }, { data: locationData }] = await Promise.all([
+      const [
+        { data: pending },
+        { data: locationData },
+        { data: categoryData },
+      ] = await Promise.all([
         supabase.rpc("get_pending_supply_quantities"),
         supabase
           .from("supply_storage_locations")
           .select("*")
           .order("location_code"),
+        supabase.from("supply_categories").select("*").order("name"),
       ]);
       setPendingQuantities(
         Object.fromEntries(
@@ -225,6 +239,7 @@ export default function InsumosPage() {
         ),
       );
       setLocations((locationData ?? []) as StorageLocation[]);
+      setCategories((categoryData ?? []) as SupplyCategory[]);
       setError("");
     } catch (err: any) {
       setError("Erro ao carregar insumos: " + err.message);
@@ -398,21 +413,115 @@ export default function InsumosPage() {
     await processSupplyAlerts();
   };
 
-  const createLocation = async (event: React.FormEvent) => {
+  const saveLocation = async (event: React.FormEvent) => {
     event.preventDefault();
-    const { data, error: locationError } = await supabase
-      .from("supply_storage_locations")
-      .insert({ ...locationForm, created_by: user?.id })
-      .select()
-      .single();
+    const query = editingLocationId
+      ? supabase
+          .from("supply_storage_locations")
+          .update({ ...locationForm, updated_at: new Date().toISOString() })
+          .eq("id", editingLocationId)
+      : supabase
+          .from("supply_storage_locations")
+          .insert({ ...locationForm, created_by: user?.id });
+    const { data, error: locationError } = await query.select().single();
     if (locationError) {
       setError(locationError.message);
       return;
     }
-    setLocations((current) => [...current, data as StorageLocation]);
+    setLocations((current) =>
+      editingLocationId
+        ? current.map((item) =>
+            item.id === editingLocationId ? (data as StorageLocation) : item,
+          )
+        : [...current, data as StorageLocation],
+    );
     setFormData((current) => ({ ...current, storage_location_id: data.id }));
     setShowLocationForm(false);
+    setEditingLocationId(null);
     setLocationForm({ location_code: "", description: "", status: "ativo" });
+  };
+
+  const openLocationForm = (location?: StorageLocation) => {
+    setEditingLocationId(location?.id ?? null);
+    setLocationForm(
+      location
+        ? {
+            location_code: location.location_code,
+            description: location.description,
+            status: location.status,
+          }
+        : { location_code: "", description: "", status: "ativo" },
+    );
+    setShowLocationForm(true);
+  };
+
+  const categoryKeyFromName = (name: string) =>
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 50);
+
+  const saveCategory = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const categoryKey = categoryKeyFromName(categoryForm.name);
+    if (!categoryKey) {
+      setError("Informe um nome válido para a categoria.");
+      return;
+    }
+    const query = editingCategoryId
+      ? supabase
+          .from("supply_categories")
+          .update({
+            name: categoryForm.name.trim(),
+            status: categoryForm.status,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editingCategoryId)
+      : supabase.from("supply_categories").insert({
+          category_key: categoryKey,
+          name: categoryForm.name.trim(),
+          status: categoryForm.status,
+          created_by: user?.id,
+        });
+    const { data, error: categoryError } = await query.select().single();
+    if (categoryError) {
+      setError(
+        categoryError.code === "23505"
+          ? "Já existe uma categoria com esse nome."
+          : categoryError.message,
+      );
+      return;
+    }
+    setCategories((current) =>
+      editingCategoryId
+        ? current.map((item) =>
+            item.id === editingCategoryId ? (data as SupplyCategory) : item,
+          )
+        : [...current, data as SupplyCategory].sort((a, b) =>
+            a.name.localeCompare(b.name, "pt-BR"),
+          ),
+    );
+    if (!editingCategoryId)
+      setFormData((current) => ({
+        ...current,
+        category: (data as SupplyCategory).category_key,
+      }));
+    setShowCategoryForm(false);
+    setEditingCategoryId(null);
+    setCategoryForm({ name: "", status: "ativo" });
+  };
+
+  const openCategoryForm = (category?: SupplyCategory) => {
+    setEditingCategoryId(category?.id ?? null);
+    setCategoryForm({
+      name: category?.name ?? "",
+      status: category?.status ?? "ativo",
+    });
+    setShowCategoryForm(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -676,9 +785,9 @@ export default function InsumosPage() {
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todas Categorias</option>
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
+                {categories.map((category) => (
+                  <option key={category.id} value={category.category_key}>
+                    {category.name}
                   </option>
                 ))}
               </select>
@@ -900,7 +1009,12 @@ export default function InsumosPage() {
                             </code>
                           </td>
                           <td className="px-4 py-3">
-                            <Badge variant="info">{supply.category}</Badge>
+                            <Badge variant="info">
+                              {categories.find(
+                                (category) =>
+                                  category.category_key === supply.category,
+                              )?.name ?? supply.category}
+                            </Badge>
                           </td>
                           <td className="px-4 py-3">
                             <div className="text-gray-900 font-semibold">
@@ -1084,7 +1198,7 @@ export default function InsumosPage() {
                         type="button"
                         variant="outline"
                         title="Cadastrar local"
-                        onClick={() => setShowLocationForm(true)}
+                        onClick={() => openLocationForm()}
                       >
                         <MapPin size={17} />
                         <Plus size={13} />
@@ -1115,19 +1229,40 @@ export default function InsumosPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Categoria *
                     </label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) =>
-                        setFormData({ ...formData, category: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        required
+                        value={formData.category}
+                        onChange={(e) =>
+                          setFormData({ ...formData, category: e.target.value })
+                        }
+                        className="min-w-0 flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Selecione</option>
+                        {categories
+                          .filter(
+                            (category) =>
+                              category.status === "ativo" ||
+                              category.category_key === formData.category,
+                          )
+                          .map((category) => (
+                            <option
+                              key={category.id}
+                              value={category.category_key}
+                            >
+                              {category.name}
+                            </option>
+                          ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        title="Gerenciar categorias"
+                        onClick={() => openCategoryForm()}
+                      >
+                        <Plus size={16} />
+                      </Button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1371,9 +1506,13 @@ export default function InsumosPage() {
           <Dialog open={showLocationForm} onOpenChange={setShowLocationForm}>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Novo local de armazenamento</DialogTitle>
+                <DialogTitle>
+                  {editingLocationId
+                    ? "Editar local de armazenamento"
+                    : "Novo local de armazenamento"}
+                </DialogTitle>
               </DialogHeader>
-              <form onSubmit={createLocation} className="space-y-4">
+              <form onSubmit={saveLocation} className="space-y-4">
                 <label className="block">
                   <span className="mb-1 block text-sm font-medium">
                     Endereço/Código de localização *
@@ -1424,6 +1563,36 @@ export default function InsumosPage() {
                     <option value="inativo">Inativo</option>
                   </select>
                 </label>
+                {locations.length > 0 && (
+                  <div className="max-h-44 space-y-2 overflow-y-auto rounded-xl border bg-gray-50 p-2">
+                    <p className="px-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Locais cadastrados
+                    </p>
+                    {locations.map((location) => (
+                      <div
+                        key={location.id}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {location.location_code} — {location.description}
+                          </p>
+                          <p className="text-xs capitalize text-gray-500">
+                            {location.status}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openLocationForm(location)}
+                        >
+                          <Edit size={14} /> Editar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <DialogFooter>
                   <Button
                     type="button"
@@ -1432,7 +1601,103 @@ export default function InsumosPage() {
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit">Cadastrar local</Button>
+                  <Button type="submit">
+                    {editingLocationId
+                      ? "Salvar alterações"
+                      : "Cadastrar local"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={showCategoryForm} onOpenChange={setShowCategoryForm}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingCategoryId ? "Editar categoria" : "Nova categoria"}
+                </DialogTitle>
+                <DialogDescription>
+                  Cadastre categorias adicionais ou altere o nome e a
+                  disponibilidade das categorias existentes.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={saveCategory} className="space-y-4">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">
+                    Nome da categoria *
+                  </span>
+                  <input
+                    required
+                    maxLength={80}
+                    className="w-full rounded-lg border px-3 py-2"
+                    value={categoryForm.name}
+                    onChange={(event) =>
+                      setCategoryForm({
+                        ...categoryForm,
+                        name: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Status</span>
+                  <select
+                    className="w-full rounded-lg border px-3 py-2"
+                    value={categoryForm.status}
+                    onChange={(event) =>
+                      setCategoryForm({
+                        ...categoryForm,
+                        status: event.target.value,
+                      })
+                    }
+                  >
+                    <option value="ativo">Ativa</option>
+                    <option value="inativo">Inativa</option>
+                  </select>
+                </label>
+                {categories.length > 0 && (
+                  <div className="max-h-52 space-y-2 overflow-y-auto rounded-xl border bg-gray-50 p-2">
+                    <p className="px-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Categorias cadastradas
+                    </p>
+                    {categories.map((category) => (
+                      <div
+                        key={category.id}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold">
+                            {category.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {category.category_key} · {category.status}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openCategoryForm(category)}
+                        >
+                          <Edit size={14} /> Editar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCategoryForm(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit">
+                    {editingCategoryId
+                      ? "Salvar alterações"
+                      : "Cadastrar categoria"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
