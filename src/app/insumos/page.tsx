@@ -31,6 +31,8 @@ import {
   getSuppliesByCategory,
 } from "@/lib/supabase/supplies";
 import { supabase } from "@/lib/supabase/auth";
+import { uploadImage } from "@/lib/supabase/storage";
+import { SupplyRequisitionDialog } from "@/components/supplies/SupplyRequisitionDialog";
 import {
   Search,
   Plus,
@@ -49,6 +51,9 @@ import {
   ExternalLink,
   FileText,
   UserRound,
+  ClipboardList,
+  Image as ImageIcon,
+  MapPin,
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -61,7 +66,34 @@ const CATEGORIES = [
   "outro",
 ];
 const STATUSES = ["normal", "baixo", "critico"];
-type ManagedSupply = Supply & { is_active?: boolean };
+type ManagedSupply = Supply & {
+  is_active?: boolean;
+  image_url?: string | null;
+  image_path?: string | null;
+  storage_location_id?: string | null;
+};
+type StorageLocation = {
+  id: string;
+  location_code: string;
+  description: string;
+  status: string;
+};
+type Requisition = {
+  id: string;
+  requisition_number: string;
+  approval_status: string;
+  observation: string | null;
+  created_at: string;
+  requested_by: string;
+  occurrence_id: string | null;
+  supply_requisition_items?: Array<{
+    id: string;
+    quantity: number;
+    supplies: ManagedSupply | null;
+  }>;
+  requester_name?: string;
+  occurrence_number?: string;
+};
 
 function stockStatus(supply: ManagedSupply) {
   if (
@@ -111,6 +143,25 @@ export default function InsumosPage() {
     null,
   );
   const [movementLinkHandled, setMovementLinkHandled] = useState(false);
+  const [showRequisition, setShowRequisition] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
+  const [queueLinkHandled, setQueueLinkHandled] = useState(false);
+  const [requisitions, setRequisitions] = useState<Requisition[]>([]);
+  const [pendingQuantities, setPendingQuantities] = useState<
+    Record<string, number>
+  >({});
+  const [locations, setLocations] = useState<StorageLocation[]>([]);
+  const [showLocationForm, setShowLocationForm] = useState(false);
+  const [locationForm, setLocationForm] = useState({
+    location_code: "",
+    description: "",
+    status: "ativo",
+  });
+  const [itemPhoto, setItemPhoto] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const canManage = ["administrador", "administracao"].includes(
     profile?.role || "",
@@ -142,6 +193,7 @@ export default function InsumosPage() {
     status: "normal",
     unit_cost: "",
     last_purchase_date: "",
+    storage_location_id: "",
   });
 
   // Load supplies
@@ -155,6 +207,24 @@ export default function InsumosPage() {
       setLoading(true);
       const data = await getSupplies();
       setSupplies(data as ManagedSupply[]);
+      const [{ data: pending }, { data: locationData }] = await Promise.all([
+        supabase.rpc("get_pending_supply_quantities"),
+        supabase
+          .from("supply_storage_locations")
+          .select("*")
+          .order("location_code"),
+      ]);
+      setPendingQuantities(
+        Object.fromEntries(
+          (pending ?? []).map(
+            (item: { supply_id: string; pending_quantity: number }) => [
+              item.supply_id,
+              Number(item.pending_quantity),
+            ],
+          ),
+        ),
+      );
+      setLocations((locationData ?? []) as StorageLocation[]);
       setError("");
     } catch (err: any) {
       setError("Erro ao carregar insumos: " + err.message);
@@ -179,6 +249,7 @@ export default function InsumosPage() {
         status: supply.status,
         unit_cost: supply.unit_cost?.toString() || "",
         last_purchase_date: supply.last_purchase_date || "",
+        storage_location_id: supply.storage_location_id || "",
       });
     } else {
       setEditingId(null);
@@ -194,14 +265,27 @@ export default function InsumosPage() {
         status: "normal",
         unit_cost: "",
         last_purchase_date: "",
+        storage_location_id: "",
       });
     }
+    setItemPhoto(null);
     setShowDialog(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let photoUpload: Awaited<ReturnType<typeof uploadImage>> | null = null;
+      if (itemPhoto) {
+        if (!formData.code.trim())
+          throw new Error("Informe o código antes de adicionar a foto.");
+        const namedPhoto = new File(
+          [itemPhoto],
+          `${formData.code.trim()}-${itemPhoto.name}`,
+          { type: itemPhoto.type },
+        );
+        photoUpload = await uploadImage(namedPhoto, "insumos");
+      }
       const submitData = {
         ...formData,
         current_quantity: formData.current_quantity
@@ -211,6 +295,10 @@ export default function InsumosPage() {
           ? parseInt(formData.minimum_quantity)
           : null,
         unit_cost: formData.unit_cost ? parseFloat(formData.unit_cost) : null,
+        storage_location_id: formData.storage_location_id || null,
+        ...(photoUpload
+          ? { image_url: photoUpload.url, image_path: photoUpload.path }
+          : {}),
       };
 
       if (editingId) {
@@ -220,11 +308,111 @@ export default function InsumosPage() {
       }
       await loadSupplies();
       setShowDialog(false);
+      setItemPhoto(null);
       setError("");
       await processSupplyAlerts();
     } catch (err: any) {
       setError("Erro ao salvar insumo: " + err.message);
     }
+  };
+
+  const loadRequisitionQueue = async () => {
+    const { data, error: queueError } = await supabase
+      .from("supply_requisitions")
+      .select("*, supply_requisition_items(id,quantity,supplies(*))")
+      .eq("approval_status", "pendente_baixa")
+      .order("created_at");
+    if (queueError) setError(queueError.message);
+    else {
+      const rows = (data ?? []) as Requisition[];
+      const requesterIds = [...new Set(rows.map((item) => item.requested_by))];
+      const occurrenceIds = [
+        ...new Set(
+          rows
+            .map((item) => item.occurrence_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const [{ data: requesters }, { data: occurrences }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id,full_name,email")
+          .in("id", requesterIds),
+        occurrenceIds.length
+          ? supabase
+              .from("occurrences")
+              .select("id,occurrence_number")
+              .in("id", occurrenceIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+      const requesterNames = new Map(
+        (requesters ?? []).map((item) => [
+          item.id,
+          item.full_name || item.email,
+        ]),
+      );
+      const occurrenceNumbers = new Map(
+        (occurrences ?? []).map((item) => [item.id, item.occurrence_number]),
+      );
+      setRequisitions(
+        rows.map((item) => ({
+          ...item,
+          requester_name: requesterNames.get(item.requested_by),
+          occurrence_number: item.occurrence_id
+            ? occurrenceNumbers.get(item.occurrence_id)
+            : undefined,
+        })),
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (queueLinkHandled || !canManage) return;
+    setQueueLinkHandled(true);
+    if (
+      new URLSearchParams(window.location.search).get("fila") === "requisicoes"
+    ) {
+      setShowQueue(true);
+      void loadRequisitionQueue();
+    }
+  }, [canManage, queueLinkHandled]);
+
+  const processRequisition = async (
+    requisition: Requisition,
+    action: "confirmar" | "rejeitar",
+  ) => {
+    const reason =
+      action === "rejeitar"
+        ? window.prompt("Informe o motivo da rejeição (mínimo 5 caracteres):")
+        : null;
+    if (action === "rejeitar" && (!reason || reason.trim().length < 5)) return;
+    const { error: processError } = await supabase.rpc(
+      "process_supply_requisition",
+      { p_requisition_id: requisition.id, p_action: action, p_reason: reason },
+    );
+    if (processError) {
+      setError(processError.message);
+      return;
+    }
+    await Promise.all([loadRequisitionQueue(), loadSupplies()]);
+    await processSupplyAlerts();
+  };
+
+  const createLocation = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const { data, error: locationError } = await supabase
+      .from("supply_storage_locations")
+      .insert({ ...locationForm, created_by: user?.id })
+      .select()
+      .single();
+    if (locationError) {
+      setError(locationError.message);
+      return;
+    }
+    setLocations((current) => [...current, data as StorageLocation]);
+    setFormData((current) => ({ ...current, storage_location_id: data.id }));
+    setShowLocationForm(false);
+    setLocationForm({ location_code: "", description: "", status: "ativo" });
   };
 
   const handleDelete = async (id: string) => {
@@ -436,7 +624,13 @@ export default function InsumosPage() {
 
   return (
     <ProtectedRoute
-      allowedRoles={["administrador", "administracao", "manutencao", "limpeza"]}
+      allowedRoles={[
+        "administrador",
+        "administracao",
+        "recepcao",
+        "manutencao",
+        "limpeza",
+      ]}
     >
       <MainLayout
         userName={profile?.full_name || "Usuário"}
@@ -501,13 +695,27 @@ export default function InsumosPage() {
                 ))}
               </select>
             </div>
-            <Button
-              onClick={() => handleOpenDialog()}
-              className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Plus size={20} />
-              Novo Insumo
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={() => setShowRequisition(true)}>
+                <ClipboardList size={18} /> Requisição de Insumos
+              </Button>
+              {canManage && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowQueue(true);
+                      void loadRequisitionQueue();
+                    }}
+                  >
+                    <ClipboardList size={18} /> Confirmar baixas
+                  </Button>
+                  <Button onClick={() => handleOpenDialog()}>
+                    <Plus size={18} /> Novo Insumo
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Error */}
@@ -528,12 +736,14 @@ export default function InsumosPage() {
               title="Nenhum insumo encontrado"
               description="Comece cadastrando seu primeiro insumo"
               action={
-                <Button
-                  onClick={() => handleOpenDialog()}
-                  className="bg-blue-600 text-white"
-                >
-                  Criar Insumo
-                </Button>
+                canManage ? (
+                  <Button
+                    onClick={() => handleOpenDialog()}
+                    className="bg-blue-600 text-white"
+                  >
+                    Criar Insumo
+                  </Button>
+                ) : undefined
               }
             />
           ) : (
@@ -569,34 +779,39 @@ export default function InsumosPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="w-12 px-4 py-3 text-left">
-                          <input
-                            type="checkbox"
-                            aria-label="Selecionar todos os insumos ativos"
-                            disabled={!canManage}
-                            checked={
-                              filteredSupplies.filter(
-                                (item) => item.is_active !== false,
-                              ).length > 0 &&
-                              filteredSupplies
-                                .filter((item) => item.is_active !== false)
-                                .every((item) => selectedIds.has(item.id))
-                            }
-                            onChange={(event) => {
-                              const activeIds = filteredSupplies
-                                .filter((item) => item.is_active !== false)
-                                .map((item) => item.id);
-                              setSelectedIds((current) => {
-                                const next = new Set(current);
-                                activeIds.forEach((id) =>
-                                  event.target.checked
-                                    ? next.add(id)
-                                    : next.delete(id),
-                                );
-                                return next;
-                              });
-                            }}
-                          />
+                        {canManage && (
+                          <th className="w-12 px-4 py-3 text-left">
+                            <input
+                              type="checkbox"
+                              aria-label="Selecionar todos os insumos ativos"
+                              disabled={!canManage}
+                              checked={
+                                filteredSupplies.filter(
+                                  (item) => item.is_active !== false,
+                                ).length > 0 &&
+                                filteredSupplies
+                                  .filter((item) => item.is_active !== false)
+                                  .every((item) => selectedIds.has(item.id))
+                              }
+                              onChange={(event) => {
+                                const activeIds = filteredSupplies
+                                  .filter((item) => item.is_active !== false)
+                                  .map((item) => item.id);
+                                setSelectedIds((current) => {
+                                  const next = new Set(current);
+                                  activeIds.forEach((id) =>
+                                    event.target.checked
+                                      ? next.add(id)
+                                      : next.delete(id),
+                                  );
+                                  return next;
+                                });
+                              }}
+                            />
+                          </th>
+                        )}
+                        <th className="w-20 px-4 py-3 text-left font-semibold text-gray-700">
+                          Foto
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">
                           Nome
@@ -611,11 +826,16 @@ export default function InsumosPage() {
                           Quantidade
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Status
+                          Em requisição
                         </th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Ações
+                          Status
                         </th>
+                        {canManage && (
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                            Ações
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -624,16 +844,45 @@ export default function InsumosPage() {
                           key={supply.id}
                           className={`border-b border-gray-100 hover:bg-gray-50 ${supply.is_active === false ? "opacity-55" : ""}`}
                         >
+                          {canManage && (
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                aria-label={`Selecionar ${supply.name}`}
+                                disabled={
+                                  !canManage || supply.is_active === false
+                                }
+                                checked={selectedIds.has(supply.id)}
+                                onChange={() => toggleSelection(supply.id)}
+                              />
+                            </td>
+                          )}
                           <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              aria-label={`Selecionar ${supply.name}`}
-                              disabled={
-                                !canManage || supply.is_active === false
-                              }
-                              checked={selectedIds.has(supply.id)}
-                              onChange={() => toggleSelection(supply.id)}
-                            />
+                            {supply.image_url ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setImagePreview({
+                                    url: supply.image_url!,
+                                    name: supply.name,
+                                  })
+                                }
+                                className="overflow-hidden rounded-lg focus:ring-2 focus:ring-blue-500"
+                              >
+                                <img
+                                  src={supply.image_url}
+                                  alt={supply.name}
+                                  className="h-12 w-12 object-cover transition hover:scale-110"
+                                />
+                              </button>
+                            ) : (
+                              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100">
+                                <ImageIcon
+                                  size={18}
+                                  className="text-gray-400"
+                                />
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div>
@@ -667,6 +916,14 @@ export default function InsumosPage() {
                             )}
                           </td>
                           <td className="px-4 py-3">
+                            <span className="font-semibold text-orange-700">
+                              {pendingQuantities[supply.id] ?? 0}
+                            </span>{" "}
+                            <span className="text-xs text-gray-500">
+                              {supply.unit}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               {getStatusIcon(stockStatus(supply))}
                               <Badge
@@ -681,36 +938,38 @@ export default function InsumosPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Razão do item"
-                                disabled={selectedIds.size > 1}
-                                onClick={() => void openLedger(supply)}
-                                className="text-blue-700 hover:bg-blue-50"
-                              >
-                                <History size={16} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenDialog(supply)}
-                                className="text-gray-600 hover:bg-gray-100"
-                              >
-                                <Edit size={16} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(supply.id)}
-                                className="text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 size={16} />
-                              </Button>
-                            </div>
-                          </td>
+                          {canManage && (
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Razão do item"
+                                  disabled={selectedIds.size > 1}
+                                  onClick={() => void openLedger(supply)}
+                                  className="text-blue-700 hover:bg-blue-50"
+                                >
+                                  <History size={16} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenDialog(supply)}
+                                  className="text-gray-600 hover:bg-gray-100"
+                                >
+                                  <Edit size={16} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(supply.id)}
+                                  className="text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -794,6 +1053,60 @@ export default function InsumosPage() {
                     rows={2}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Local de armazenamento
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2"
+                        value={formData.storage_location_id}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            storage_location_id: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Selecione o local</option>
+                        {locations
+                          .filter((item) => item.status === "ativo")
+                          .map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.location_code} — {item.description}
+                            </option>
+                          ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        title="Cadastrar local"
+                        onClick={() => setShowLocationForm(true)}
+                      >
+                        <MapPin size={17} />
+                        <Plus size={13} />
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Adicionar foto do item
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                      onChange={(e) =>
+                        setItemPhoto(e.target.files?.[0] ?? null)
+                      }
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Salva em images/insumos com o código do produto.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Category, Unit, Status */}
@@ -933,6 +1246,213 @@ export default function InsumosPage() {
                   </Button>
                 </DialogFooter>
               </form>
+            </DialogContent>
+          </Dialog>
+          <SupplyRequisitionDialog
+            open={showRequisition}
+            onClose={(created) => {
+              setShowRequisition(false);
+              if (created) void loadSupplies();
+            }}
+          />
+          <Dialog open={showQueue} onOpenChange={setShowQueue}>
+            <DialogContent className="max-h-[94dvh] max-w-5xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Fila de confirmação de baixa</DialogTitle>
+                <DialogDescription>
+                  Confirme para efetivar a saída do estoque ou rejeite sem
+                  alterar o saldo.
+                </DialogDescription>
+              </DialogHeader>
+              {requisitions.length === 0 ? (
+                <p className="rounded-lg bg-gray-50 p-8 text-center text-gray-500">
+                  Nenhuma requisição pendente.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {requisitions.map((request) => (
+                    <article
+                      key={request.id}
+                      className="rounded-2xl border p-4 shadow-sm"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900">
+                            {request.requisition_number}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Solicitante:{" "}
+                            {request.requester_name || "não identificado"} ·{" "}
+                            {new Date(request.created_at).toLocaleString(
+                              "pt-BR",
+                            )}
+                          </p>
+                          {request.occurrence_number && (
+                            <a
+                              href={`/ocorrencias?ocorrencia=${request.occurrence_id}`}
+                              className="text-xs font-medium text-blue-700 hover:underline"
+                            >
+                              Ocorrência #{request.occurrence_number}
+                            </a>
+                          )}
+                        </div>
+                        <Badge variant="warning">Pendente de baixa</Badge>
+                      </div>
+                      {request.observation && (
+                        <p className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+                          {request.observation}
+                        </p>
+                      )}
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {request.supply_requisition_items?.map(
+                          (item) =>
+                            item.supplies && (
+                              <div
+                                key={item.id}
+                                className="flex items-center gap-3 rounded-xl bg-gray-50 p-3"
+                              >
+                                {item.supplies.image_url ? (
+                                  <img
+                                    src={item.supplies.image_url}
+                                    alt=""
+                                    className="h-14 w-14 rounded-lg object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white">
+                                    <Package />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-semibold">
+                                    {item.supplies.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {item.supplies.code} · Saldo{" "}
+                                    {item.supplies.current_quantity}
+                                  </p>
+                                </div>
+                                <strong className="text-blue-700">
+                                  {item.quantity} {item.supplies.unit}
+                                </strong>
+                              </div>
+                            ),
+                        )}
+                      </div>
+                      <div className="mt-4 flex justify-end gap-2">
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() =>
+                            void processRequisition(request, "rejeitar")
+                          }
+                        >
+                          Rejeitar
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            void processRequisition(request, "confirmar")
+                          }
+                        >
+                          Confirmar baixa
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowQueue(false)}>
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={showLocationForm} onOpenChange={setShowLocationForm}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Novo local de armazenamento</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={createLocation} className="space-y-4">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">
+                    Endereço/Código de localização *
+                  </span>
+                  <input
+                    required
+                    maxLength={20}
+                    className="w-full rounded-lg border px-3 py-2"
+                    value={locationForm.location_code}
+                    onChange={(e) =>
+                      setLocationForm({
+                        ...locationForm,
+                        location_code: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">
+                    Descrição do local *
+                  </span>
+                  <textarea
+                    required
+                    rows={3}
+                    className="w-full rounded-lg border px-3 py-2"
+                    value={locationForm.description}
+                    onChange={(e) =>
+                      setLocationForm({
+                        ...locationForm,
+                        description: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Status</span>
+                  <select
+                    className="w-full rounded-lg border px-3 py-2"
+                    value={locationForm.status}
+                    onChange={(e) =>
+                      setLocationForm({
+                        ...locationForm,
+                        status: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                  </select>
+                </label>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowLocationForm(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Cadastrar local</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={Boolean(imagePreview)}
+            onOpenChange={(open) => !open && setImagePreview(null)}
+          >
+            <DialogContent className="max-w-4xl bg-gray-950 p-3">
+              <DialogHeader className="sr-only">
+                <DialogTitle>Foto ampliada</DialogTitle>
+                <DialogDescription>Foto do insumo</DialogDescription>
+              </DialogHeader>
+              {imagePreview && (
+                <img
+                  src={imagePreview.url}
+                  alt={imagePreview.name}
+                  className="max-h-[82dvh] w-full rounded-lg object-contain"
+                />
+              )}
             </DialogContent>
           </Dialog>
           <Dialog
