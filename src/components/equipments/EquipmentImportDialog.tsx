@@ -50,9 +50,33 @@ const normalize = (value: unknown) =>
     .toUpperCase();
 
 const text = (value: unknown) => {
-  const result = String(value ?? "").trim();
+  const result = String(value ?? "")
+    .replace(/\u0000/g, "")
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, " ")
+    .trim();
   return result && result !== "-" ? result : null;
 };
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const value = error as {
+      message?: string;
+      details?: string;
+      hint?: string;
+      code?: string;
+    };
+    return [
+      value.message,
+      value.details,
+      value.hint,
+      value.code ? `Código: ${value.code}` : null,
+    ]
+      .filter(Boolean)
+      .join(" — ");
+  }
+  return String(error || "Erro desconhecido");
+}
 
 const numberValue = (value: unknown) => {
   const raw = String(value ?? "").replace(/[^0-9,.-]/g, "");
@@ -255,6 +279,7 @@ export function EquipmentImportDialog({
         return true;
       });
       let imported = 0;
+      const failures: string[] = [];
       for (let index = 0; index < pending.length; index += 100) {
         const batch = pending.slice(index, index + 100).map((row) => {
           const { responsible_name: responsibleName, ...equipmentRow } = row;
@@ -274,20 +299,45 @@ export function EquipmentImportDialog({
               row.status === "em_manutencao" ? "alerta" : "ok",
           };
         });
-        const { error } = await supabase
+        const { error: batchError } = await supabase
           .from("equipments")
           .insert(batch as any);
-        if (error) throw error;
-        imported += batch.length;
+        if (!batchError) {
+          imported += batch.length;
+          continue;
+        }
+        for (const equipment of batch) {
+          const { error: rowError } = await supabase
+            .from("equipments")
+            .insert(equipment as any);
+          if (rowError) {
+            failures.push(
+              `Linha ${equipment.import_row} (${equipment.patrimonial_code}): ${errorMessage(rowError)}`,
+            );
+            if (failures.length >= 5 && imported === 0) {
+              throw new Error(
+                `As primeiras linhas foram recusadas pelo banco. ${failures.join(" ")}`,
+              );
+            }
+          } else {
+            imported += 1;
+          }
+        }
       }
       setMessage(
-        `${imported} patrimônio(s) importado(s). ${rows.length - pending.length} linha(s) já processada(s) ou com código patrimonial existente foram ignoradas.`,
+        [
+          `${imported} patrimônio(s) importado(s).`,
+          `${rows.length - pending.length} linha(s) já processada(s) ou com código patrimonial existente foram ignoradas.`,
+          failures.length
+            ? `${failures.length} linha(s) falharam:\n${failures.slice(0, 8).join("\n")}${failures.length > 8 ? `\n... e mais ${failures.length - 8}.` : ""}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
       await onImported();
     } catch (error) {
-      setMessage(
-        `Falha na importação: ${error instanceof Error ? error.message : "erro desconhecido"}`,
-      );
+      setMessage(`Falha na importação: ${errorMessage(error)}`);
     } finally {
       setBusy(false);
     }
@@ -372,7 +422,7 @@ export function EquipmentImportDialog({
             </div>
           )}
           {message && (
-            <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+            <p className="whitespace-pre-wrap rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
               {message}
             </p>
           )}
