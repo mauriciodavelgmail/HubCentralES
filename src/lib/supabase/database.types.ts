@@ -238,6 +238,7 @@ export type Database = {
           description: string | null;
           category: string | null;
           location: string;
+          asset_location_id: string | null;
           responsible_id: string | null;
           status:
             | "disponivel"

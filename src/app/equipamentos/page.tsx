@@ -26,6 +26,13 @@ import { EquipmentImportDialog } from "@/components/equipments/EquipmentImportDi
 import { EquipmentMovementDialog } from "@/components/equipments/EquipmentMovementDialog";
 import { EquipmentHistoryDialog } from "@/components/equipments/EquipmentHistoryDialog";
 import {
+  AssetLocationManagerDialog,
+  type AssetFloor,
+  type AssetLocation,
+} from "@/components/equipments/AssetLocationManagerDialog";
+import { InventoryWorkflowDialog } from "@/components/equipments/InventoryWorkflowDialog";
+import { supabase } from "@/lib/supabase/auth";
+import {
   getEquipments,
   createEquipment,
   updateEquipment,
@@ -46,6 +53,8 @@ import {
   FileSpreadsheet,
   MoveRight,
   History,
+  MapPinned,
+  ClipboardCheck,
 } from "lucide-react";
 
 const LOCATIONS = [
@@ -86,6 +95,10 @@ export default function EquipamentosPage() {
   );
   const [equipmentPhoto, setEquipmentPhoto] = useState<File | null>(null);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [floors, setFloors] = useState<AssetFloor[]>([]);
+  const [assetLocations, setAssetLocations] = useState<AssetLocation[]>([]);
+  const [showLocationManager, setShowLocationManager] = useState(false);
+  const [showInventory, setShowInventory] = useState(false);
   const canManage = ["administrador", "administracao"].includes(
     profile?.role || "",
   );
@@ -112,12 +125,35 @@ export default function EquipamentosPage() {
     supplier: "",
     serial_number: "",
     model: "",
+    asset_location_id: "",
   });
 
   // Load equipments
   useEffect(() => {
     loadEquipments();
+    void loadAssetLocations();
   }, []);
+
+  const loadAssetLocations = async () => {
+    const [
+      { data: floorData, error: floorError },
+      { data: locationData, error: locationError },
+    ] = await Promise.all([
+      supabase.from("asset_floors").select("id,name,status").order("name"),
+      supabase
+        .from("asset_locations")
+        .select("id,name,status,floor_id")
+        .order("name"),
+    ]);
+    if (floorError || locationError) {
+      setError(
+        `Erro ao carregar pavimentos e locais: ${floorError?.message || locationError?.message}`,
+      );
+      return;
+    }
+    setFloors((floorData ?? []) as AssetFloor[]);
+    setAssetLocations((locationData ?? []) as AssetLocation[]);
+  };
 
   const loadEquipments = async () => {
     try {
@@ -158,6 +194,7 @@ export default function EquipamentosPage() {
         supplier: equipment.supplier || "",
         serial_number: equipment.serial_number || "",
         model: equipment.model || "",
+        asset_location_id: equipment.asset_location_id || "",
       });
     } else {
       setEditingId(null);
@@ -183,6 +220,7 @@ export default function EquipamentosPage() {
         supplier: "",
         serial_number: "",
         model: "",
+        asset_location_id: "",
       });
     }
     setEquipmentPhoto(null);
@@ -317,7 +355,13 @@ export default function EquipamentosPage() {
 
   return (
     <ProtectedRoute
-      allowedRoles={["administrador", "administracao", "manutencao"]}
+      allowedRoles={[
+        "administrador",
+        "administracao",
+        "manutencao",
+        "recepcao",
+        "limpeza",
+      ]}
     >
       <MainLayout
         userName={profile?.full_name || "Usuário"}
@@ -386,19 +430,30 @@ export default function EquipamentosPage() {
                 ))}
               </select>
             </div>
-            {canManage && (
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => setShowImport(true)}>
-                  <FileSpreadsheet size={18} /> Importar planilha
-                </Button>
-                <Button
-                  onClick={() => handleOpenDialog()}
-                  className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Plus size={20} /> Novo Patrimônio
-                </Button>
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setShowInventory(true)}>
+                <ClipboardCheck size={18} /> Modo inventário
+              </Button>
+              {canManage && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowLocationManager(true)}
+                  >
+                    <MapPinned size={18} /> Pavimentos e locais
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowImport(true)}>
+                    <FileSpreadsheet size={18} /> Importar planilha
+                  </Button>
+                  <Button
+                    onClick={() => handleOpenDialog()}
+                    className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <Plus size={20} /> Novo Patrimônio
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Error */}
@@ -640,16 +695,42 @@ export default function EquipamentosPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <label>
-                    <span className="mb-1 block text-sm font-medium">
-                      Pavimento
+                    <span className="mb-1 flex items-center justify-between text-sm font-medium">
+                      Pavimento *
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600"
+                        onClick={() => setShowLocationManager(true)}
+                      >
+                        Cadastrar
+                      </button>
                     </span>
-                    <input
+                    <select
+                      required
                       className="w-full rounded-lg border px-3 py-2"
                       value={formData.floor}
                       onChange={(e) =>
-                        setFormData({ ...formData, floor: e.target.value })
+                        setFormData({
+                          ...formData,
+                          floor: e.target.value,
+                          location: "",
+                          asset_location_id: "",
+                        })
                       }
-                    />
+                    >
+                      <option value="">Selecione</option>
+                      {floors
+                        .filter(
+                          (floor) =>
+                            floor.status === "ativo" ||
+                            floor.name === formData.floor,
+                        )
+                        .map((floor) => (
+                          <option key={floor.id} value={floor.name}>
+                            {floor.name}
+                          </option>
+                        ))}
+                    </select>
                   </label>
                   <label>
                     <span className="mb-1 block text-sm font-medium">
@@ -785,23 +866,53 @@ export default function EquipamentosPage() {
                 {/* Location, Status, Maintenance */}
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 flex items-center justify-between text-sm font-medium text-gray-700">
                       Local *
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600"
+                        onClick={() => setShowLocationManager(true)}
+                      >
+                        Cadastrar
+                      </button>
                     </label>
-                    <input
+                    <select
                       required
-                      list="equipment-locations"
-                      value={formData.location}
-                      onChange={(e) =>
-                        setFormData({ ...formData, location: e.target.value })
-                      }
+                      value={formData.asset_location_id}
+                      onChange={(e) => {
+                        const selected = assetLocations.find(
+                          (location) => location.id === e.target.value,
+                        );
+                        const selectedFloor = floors.find(
+                          (floor) => floor.id === selected?.floor_id,
+                        );
+                        setFormData({
+                          ...formData,
+                          asset_location_id: e.target.value,
+                          location: selected?.name ?? "",
+                          floor: selectedFloor?.name ?? formData.floor,
+                        });
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <datalist id="equipment-locations">
-                      {locationOptions.map((loc) => (
-                        <option key={loc} value={loc} />
-                      ))}
-                    </datalist>
+                    >
+                      <option value="">Selecione</option>
+                      {assetLocations
+                        .filter((location) => {
+                          const floor = floors.find(
+                            (item) => item.id === location.floor_id,
+                          );
+                          return (
+                            (location.status === "ativo" ||
+                              location.id === formData.asset_location_id) &&
+                            (!formData.floor || floor?.name === formData.floor)
+                          );
+                        })
+                        .map((location) => (
+                          <option key={location.id} value={location.id}>
+                            {location.name}
+                          </option>
+                        ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -986,6 +1097,7 @@ export default function EquipamentosPage() {
           />
           <EquipmentMovementDialog
             equipment={movementEquipment}
+            locations={assetLocations}
             onClose={() => setMovementEquipment(null)}
             onMoved={loadEquipments}
           />
@@ -993,6 +1105,22 @@ export default function EquipamentosPage() {
             equipment={historyEquipment}
             onClose={() => setHistoryEquipment(null)}
           />
+          <AssetLocationManagerDialog
+            open={showLocationManager}
+            onOpenChange={setShowLocationManager}
+            floors={floors}
+            locations={assetLocations}
+            userId={user?.id}
+            onSaved={loadAssetLocations}
+          />
+          {profile && (
+            <InventoryWorkflowDialog
+              open={showInventory}
+              onOpenChange={setShowInventory}
+              currentProfile={profile}
+              locations={assetLocations}
+            />
+          )}
         </div>
       </MainLayout>
     </ProtectedRoute>

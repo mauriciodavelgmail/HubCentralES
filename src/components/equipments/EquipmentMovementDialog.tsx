@@ -14,17 +14,20 @@ import {
 import { supabase } from "@/lib/supabase/auth";
 import { uploadDocument, uploadImage } from "@/lib/supabase/storage";
 import type { Equipment } from "@/lib/supabase/equipments";
+import type { AssetLocation } from "./AssetLocationManagerDialog";
 
 type Props = {
   equipment: Equipment | null;
   onClose: () => void;
   onMoved: () => Promise<void>;
+  locations: AssetLocation[];
 };
 
 export function EquipmentMovementDialog({
   equipment,
   onClose,
   onMoved,
+  locations,
 }: Props) {
   const [destination, setDestination] = useState("");
   const [description, setDescription] = useState("");
@@ -114,12 +117,25 @@ export function EquipmentMovementDialog({
               <ArrowRight className="hidden text-orange-500 sm:block" />
               <label>
                 <span className="text-xs text-gray-500">Destino *</span>
-                <input
+                <select
                   required
                   className="mt-1 w-full rounded-lg border bg-white px-3 py-2"
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
-                />
+                >
+                  <option value="">Selecione</option>
+                  {locations
+                    .filter(
+                      (location) =>
+                        location.status === "ativo" &&
+                        location.id !== equipment.asset_location_id,
+                    )
+                    .map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name}
+                      </option>
+                    ))}
+                </select>
               </label>
             </div>
             <label className="block">
