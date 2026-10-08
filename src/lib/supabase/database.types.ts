@@ -8,7 +8,13 @@ export type Database = {
           user_id: string;
           email: string;
           full_name: string | null;
-          role: 'administrador' | 'administracao' | 'recepcao' | 'manutencao' | 'limpeza' | 'visitante';
+          role:
+            | "administrador"
+            | "administracao"
+            | "recepcao"
+            | "manutencao"
+            | "limpeza"
+            | "visitante";
           department_id: string | null;
           avatar_url: string | null;
           phone: string | null;
@@ -18,8 +24,11 @@ export type Database = {
           created_by: string | null;
           updated_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Insert: Omit<
+          Database["public"]["Tables"]["profiles"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
       };
       documents: {
         Row: {
@@ -29,7 +38,7 @@ export type Database = {
           title: string;
           description: string | null;
           category: string;
-          status: 'ativo' | 'vencendo' | 'vencido' | 'arquivado';
+          status: "ativo" | "vencendo" | "vencido" | "arquivado";
           responsible_id: string | null;
           responsible_name: string | null;
           file_url: string;
@@ -47,8 +56,11 @@ export type Database = {
           created_by: string | null;
           updated_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['documents']['Row'], 'id' | 'uuid' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['documents']['Insert']>;
+        Insert: Omit<
+          Database["public"]["Tables"]["documents"]["Row"],
+          "id" | "uuid" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["documents"]["Insert"]>;
       };
       occurrences: {
         Row: {
@@ -57,8 +69,9 @@ export type Database = {
           title: string;
           description: string;
           category: string;
-          priority: 'baixa' | 'media' | 'alta' | 'critica';
-          status: 'aberta' | 'em_analise' | 'em_execucao' | 'resolvida' | 'cancelada';
+          priority: "baixa" | "media" | "alta" | "critica";
+          status:
+            "aberta" | "em_analise" | "em_execucao" | "resolvida" | "cancelada";
           location: string;
           responsible_id: string | null;
           reporter_id: string;
@@ -73,8 +86,11 @@ export type Database = {
           created_by: string | null;
           updated_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['occurrences']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['occurrences']['Insert']>;
+        Insert: Omit<
+          Database["public"]["Tables"]["occurrences"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["occurrences"]["Insert"]>;
       };
       events: {
         Row: {
@@ -85,7 +101,8 @@ export type Database = {
           space_id: string;
           responsible_id: string;
           requester_id: string;
-          status: 'cancelada' | 'aguardando_aprovacao' | 'confirmada' | 'realizada';
+          status:
+            "cancelada" | "aguardando_aprovacao" | "confirmada" | "realizada";
           start_date: string;
           start_time: string;
           end_time: string;
@@ -99,8 +116,11 @@ export type Database = {
           created_by: string | null;
           updated_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['events']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['events']['Insert']>;
+        Insert: Omit<
+          Database["public"]["Tables"]["events"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["events"]["Insert"]>;
       };
       supplies: {
         Row: {
@@ -142,7 +162,7 @@ export type Database = {
           created_by?: string | null;
           updated_by?: string | null;
         };
-        Update: Partial<Database['public']['Tables']['supplies']['Insert']>;
+        Update: Partial<Database["public"]["Tables"]["supplies"]["Insert"]>;
       };
       purchases: {
         Row: {
@@ -154,7 +174,14 @@ export type Database = {
           quantity: number | null;
           unit_cost: number | null;
           total_cost: number | null;
-          status: 'solicitacao' | 'aprovacao' | 'cotacao' | 'compra_realizada' | 'recebimento' | 'concluida' | 'cancelada';
+          status:
+            | "solicitacao"
+            | "aprovacao"
+            | "cotacao"
+            | "compra_realizada"
+            | "recebimento"
+            | "concluida"
+            | "cancelada";
           priority: string;
           solicitant_id?: string;
           department_id: string | null;
@@ -179,7 +206,14 @@ export type Database = {
           quantity?: number | null;
           unit_cost?: number | null;
           total_cost?: number | null;
-          status: 'solicitacao' | 'aprovacao' | 'cotacao' | 'compra_realizada' | 'recebimento' | 'concluida' | 'cancelada';
+          status:
+            | "solicitacao"
+            | "aprovacao"
+            | "cotacao"
+            | "compra_realizada"
+            | "recebimento"
+            | "concluida"
+            | "cancelada";
           priority: string;
           solicitant_id?: string;
           department_id?: string | null;
@@ -194,7 +228,7 @@ export type Database = {
           created_by?: string | null;
           updated_by?: string | null;
         };
-        Update: Partial<Database['public']['Tables']['purchases']['Insert']>;
+        Update: Partial<Database["public"]["Tables"]["purchases"]["Insert"]>;
       };
       equipments: {
         Row: {
@@ -205,7 +239,12 @@ export type Database = {
           category: string | null;
           location: string;
           responsible_id: string | null;
-          status: 'disponivel' | 'em_uso' | 'em_manutencao' | 'indisponivel' | 'baixado';
+          status:
+            | "disponivel"
+            | "em_uso"
+            | "em_manutencao"
+            | "indisponivel"
+            | "baixado";
           maintenance_status: string | null;
           acquisition_date: string | null;
           purchase_date: string | null;
@@ -218,6 +257,21 @@ export type Database = {
           model: string | null;
           serial_number: string | null;
           notes: string | null;
+          floor: string | null;
+          acquisition_source: string | null;
+          invoice_number: string | null;
+          invoice_url: string | null;
+          invoice_path: string | null;
+          image_path: string | null;
+          quantity: number;
+          unit: string;
+          acquisition_value: number | null;
+          supplier: string | null;
+          defect_notes: string | null;
+          import_source: string | null;
+          import_sheet: string | null;
+          import_row: number | null;
+          imported_at: string | null;
           is_low: boolean;
           low_date: string | null;
           created_at: string;
@@ -225,8 +279,11 @@ export type Database = {
           created_by: string | null;
           updated_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['equipments']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['equipments']['Insert']>;
+        Insert: Omit<
+          Database["public"]["Tables"]["equipments"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["equipments"]["Insert"]>;
       };
     };
     Views: Record<string, never>;
@@ -236,10 +293,10 @@ export type Database = {
 };
 
 // Type Exports for Components - Matching component expectations
-export type Document = Database['public']['Tables']['documents']['Row'];
-export type Occurrence = Database['public']['Tables']['occurrences']['Row'];
-export type Event = Database['public']['Tables']['events']['Row'];
-export type Supply = Database['public']['Tables']['supplies']['Row'];
-export type Purchase = Database['public']['Tables']['purchases']['Row'];
-export type Equipment = Database['public']['Tables']['equipments']['Row'];
-export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type Document = Database["public"]["Tables"]["documents"]["Row"];
+export type Occurrence = Database["public"]["Tables"]["occurrences"]["Row"];
+export type Event = Database["public"]["Tables"]["events"]["Row"];
+export type Supply = Database["public"]["Tables"]["supplies"]["Row"];
+export type Purchase = Database["public"]["Tables"]["purchases"]["Row"];
+export type Equipment = Database["public"]["Tables"]["equipments"]["Row"];
+export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
