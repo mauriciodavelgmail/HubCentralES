@@ -662,11 +662,17 @@ export function InventoryWorkflowDialog({
                   }
                 >
                   <option value="">Selecione</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.full_name} · {p.role}
-                    </option>
-                  ))}
+                  {profiles
+                    .filter((p) =>
+                      ["administrador", "administracao", "manutencao"].includes(
+                        p.role,
+                      ),
+                    )
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.full_name} · {p.role}
+                      </option>
+                    ))}
                 </select>
               </label>
               <div className="flex items-end">
