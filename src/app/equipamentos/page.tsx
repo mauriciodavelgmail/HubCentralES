@@ -571,7 +571,7 @@ export default function EquipamentosPage() {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs xl:text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
                         <th className="w-10 px-3 py-3 text-left">
@@ -682,7 +682,7 @@ export default function EquipamentosPage() {
                             {eq.quantity || 1} {eq.unit || "UNIDADE"}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               {getStatusIcon(eq.status)}
                               <Badge variant={getStatusColor(eq.status) as any}>
                                 {eq.status}
@@ -715,7 +715,7 @@ export default function EquipamentosPage() {
                               : "—"}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
