@@ -273,6 +273,7 @@ export type Database = {
           import_sheet: string | null;
           import_row: number | null;
           imported_at: string | null;
+          last_inventory_at: string | null;
           is_low: boolean;
           low_date: string | null;
           created_at: string;

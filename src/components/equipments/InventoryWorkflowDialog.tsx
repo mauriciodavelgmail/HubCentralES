@@ -535,11 +535,13 @@ export function InventoryWorkflowDialog({
   onOpenChange,
   currentProfile,
   locations,
+  onInventoryUpdated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentProfile: Profile;
   locations: AssetLocation[];
+  onInventoryUpdated?: () => Promise<void>;
 }) {
   const [requests, setRequests] = useState<Request[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -781,7 +783,10 @@ export function InventoryWorkflowDialog({
           locations={locations}
           profile={currentProfile}
           onClose={() => setExecuting(null)}
-          onSaved={load}
+          onSaved={async () => {
+            await load();
+            await onInventoryUpdated?.();
+          }}
         />
       )}
     </>

@@ -31,6 +31,11 @@ import {
   type AssetLocation,
 } from "@/components/equipments/AssetLocationManagerDialog";
 import { InventoryWorkflowDialog } from "@/components/equipments/InventoryWorkflowDialog";
+import {
+  AssetCodePreview,
+  AssetLabelsDialog,
+} from "@/components/equipments/AssetLabelsDialog";
+import { BatchEquipmentMovementDialog } from "@/components/equipments/BatchEquipmentMovementDialog";
 import { supabase } from "@/lib/supabase/auth";
 import {
   getEquipments,
@@ -55,6 +60,9 @@ import {
   History,
   MapPinned,
   ClipboardCheck,
+  ArrowUpDown,
+  Image as ImageIcon,
+  Barcode,
 } from "lucide-react";
 
 const LOCATIONS = [
@@ -99,6 +107,14 @@ export default function EquipamentosPage() {
   const [assetLocations, setAssetLocations] = useState<AssetLocation[]>([]);
   const [showLocationManager, setShowLocationManager] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBatchMovement, setShowBatchMovement] = useState(false);
+  const [showLabels, setShowLabels] = useState(false);
+  const [imagePreview, setImagePreview] = useState<Equipment | null>(null);
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Equipment;
+    direction: "asc" | "desc";
+  }>({ key: "name", direction: "asc" });
   const canManage = ["administrador", "administracao"].includes(
     profile?.role || "",
   );
@@ -305,6 +321,38 @@ export default function EquipamentosPage() {
     const matchesStatus = !filterStatus || eq.status === filterStatus;
     return matchesSearch && matchesLocation && matchesStatus;
   });
+  const sortedEquipments = [...filteredEquipments].sort((a, b) => {
+    const left = a[sortConfig.key];
+    const right = b[sortConfig.key];
+    const comparison = String(left ?? "").localeCompare(
+      String(right ?? ""),
+      "pt-BR",
+      {
+        numeric: true,
+        sensitivity: "base",
+      },
+    );
+    return sortConfig.direction === "asc" ? comparison : -comparison;
+  });
+  const changeSort = (key: keyof Equipment) =>
+    setSortConfig((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  const toggleSelection = (id: string) =>
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const selectedEquipments = equipments.filter((equipment) =>
+    selectedIds.has(equipment.id),
+  );
+  const labelEquipments = selectedEquipments.length
+    ? selectedEquipments
+    : sortedEquipments;
 
   const maintenanceAlerts = equipments.filter(
     (e) => e.maintenance_status !== "ok",
@@ -356,6 +404,22 @@ export default function EquipamentosPage() {
         return "secondary";
     }
   };
+
+  const sortableHeader = (label: string, key: keyof Equipment) => (
+    <th className="whitespace-nowrap px-3 py-3 text-left font-semibold text-gray-700">
+      <button
+        type="button"
+        onClick={() => changeSort(key)}
+        className="inline-flex items-center gap-1 hover:text-blue-700"
+      >
+        {label}
+        <ArrowUpDown
+          size={14}
+          className={sortConfig.key === key ? "text-blue-600" : "text-gray-400"}
+        />
+      </button>
+    </th>
+  );
 
   return (
     <ProtectedRoute
@@ -435,6 +499,18 @@ export default function EquipamentosPage() {
               </select>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setShowLabels(true)}>
+                <Barcode size={18} /> Etiquetas
+              </Button>
+              {canManage && selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBatchMovement(true)}
+                  className="border-orange-300 text-orange-700"
+                >
+                  <MoveRight size={18} /> Movimentar {selectedIds.size}
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setShowInventory(true)}>
                 <ClipboardCheck size={18} /> Modo inventário
               </Button>
@@ -498,38 +574,92 @@ export default function EquipamentosPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Nome
+                        <th className="w-10 px-3 py-3 text-left">
+                          {canManage && (
+                            <input
+                              type="checkbox"
+                              aria-label="Selecionar todos"
+                              checked={
+                                sortedEquipments.length > 0 &&
+                                sortedEquipments.every((item) =>
+                                  selectedIds.has(item.id),
+                                )
+                              }
+                              onChange={(event) =>
+                                setSelectedIds((current) => {
+                                  const next = new Set(current);
+                                  sortedEquipments.forEach((item) =>
+                                    event.target.checked
+                                      ? next.add(item.id)
+                                      : next.delete(item.id),
+                                  );
+                                  return next;
+                                })
+                              }
+                            />
+                          )}
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Código
+                        <th className="w-16 px-3 py-3 text-left font-semibold text-gray-700">
+                          Foto
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Local
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Qtd.
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Status
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Manutenção
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Próxima
-                        </th>
+                        {sortableHeader("Nome", "name")}
+                        {sortableHeader("Código", "patrimonial_code")}
+                        {sortableHeader("Local", "location")}
+                        {sortableHeader("Qtd.", "quantity")}
+                        {sortableHeader("Status", "status")}
+                        {sortableHeader("Manutenção", "maintenance_status")}
+                        {sortableHeader("Próxima", "next_maintenance_date")}
+                        {sortableHeader(
+                          "Último inventário",
+                          "last_inventory_at",
+                        )}
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">
                           Ações
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredEquipments.map((eq) => (
+                      {sortedEquipments.map((eq) => (
                         <tr
                           key={eq.id}
                           className="border-b border-gray-100 hover:bg-gray-50"
                         >
+                          <td className="px-3 py-3">
+                            {canManage && (
+                              <input
+                                type="checkbox"
+                                aria-label={`Selecionar ${eq.name}`}
+                                checked={selectedIds.has(eq.id)}
+                                onChange={() => toggleSelection(eq.id)}
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                eq.image_url && setImagePreview(eq)
+                              }
+                              disabled={!eq.image_url}
+                              className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border bg-slate-100"
+                              title={
+                                eq.image_url ? "Ampliar imagem" : "Sem imagem"
+                              }
+                            >
+                              {eq.image_url ? (
+                                <img
+                                  src={eq.image_url}
+                                  alt={eq.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <ImageIcon
+                                  size={20}
+                                  className="text-gray-400"
+                                />
+                              )}
+                            </button>
+                          </td>
                           <td className="px-4 py-3">
                             <div>
                               <p className="font-medium text-gray-900">
@@ -574,6 +704,13 @@ export default function EquipamentosPage() {
                             {eq.next_maintenance_date
                               ? new Date(
                                   eq.next_maintenance_date,
+                                ).toLocaleDateString("pt-BR")
+                              : "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                            {eq.last_inventory_at
+                              ? new Date(
+                                  eq.last_inventory_at,
                                 ).toLocaleDateString("pt-BR")
                               : "—"}
                           </td>
@@ -696,6 +833,7 @@ export default function EquipamentosPage() {
                     />
                   </div>
                 </div>
+                <AssetCodePreview value={formData.patrimonial_code} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <label>
@@ -1109,6 +1247,39 @@ export default function EquipamentosPage() {
             equipment={historyEquipment}
             onClose={() => setHistoryEquipment(null)}
           />
+          <BatchEquipmentMovementDialog
+            open={showBatchMovement}
+            onOpenChange={setShowBatchMovement}
+            equipmentIds={[...selectedIds]}
+            locations={assetLocations}
+            onMoved={async () => {
+              setSelectedIds(new Set());
+              await loadEquipments();
+            }}
+          />
+          <AssetLabelsDialog
+            open={showLabels}
+            onOpenChange={setShowLabels}
+            equipments={labelEquipments}
+          />
+          <Dialog
+            open={Boolean(imagePreview)}
+            onOpenChange={(open) => !open && setImagePreview(null)}
+          >
+            <DialogContent className="max-w-4xl bg-slate-950 p-3">
+              <DialogHeader className="sr-only">
+                <DialogTitle>Imagem do patrimônio</DialogTitle>
+                <DialogDescription>Imagem ampliada</DialogDescription>
+              </DialogHeader>
+              {imagePreview?.image_url && (
+                <img
+                  src={imagePreview.image_url}
+                  alt={imagePreview.name}
+                  className="max-h-[84dvh] w-full rounded-lg object-contain"
+                />
+              )}
+            </DialogContent>
+          </Dialog>
           <AssetLocationManagerDialog
             open={showLocationManager}
             onOpenChange={setShowLocationManager}
@@ -1123,6 +1294,7 @@ export default function EquipamentosPage() {
               onOpenChange={setShowInventory}
               currentProfile={profile}
               locations={assetLocations}
+              onInventoryUpdated={loadEquipments}
             />
           )}
         </div>
