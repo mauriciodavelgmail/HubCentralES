@@ -253,6 +253,10 @@ export default function EquipamentosPage() {
         : null;
       const payload = {
         ...formData,
+        purchase_date: formData.purchase_date || null,
+        warranty_expiration_date: formData.warranty_expiration_date || null,
+        last_maintenance_date: formData.last_maintenance_date || null,
+        next_maintenance_date: formData.next_maintenance_date || null,
         quantity: Math.max(1, Number(formData.quantity) || 1),
         acquisition_value: formData.acquisition_value
           ? Number(formData.acquisition_value)
