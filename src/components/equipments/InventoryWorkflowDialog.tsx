@@ -112,6 +112,7 @@ function InventoryExecution({
   const [error, setError] = useState("");
   const [password, setPassword] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<"assets" | "reader">("assets");
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   useEffect(() => {
@@ -275,22 +276,43 @@ function InventoryExecution({
   const currentScope = scopes.find((scope) => scope.location_id === locationId);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="h-[96dvh] max-w-[96vw] overflow-hidden p-0">
+      <DialogContent className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:w-[96vw] sm:max-w-[96vw] sm:rounded-xl sm:border">
         <div className="flex h-full flex-col">
-          <DialogHeader className="border-b bg-slate-900 p-4 text-white">
-            <DialogTitle className="text-white">
+          <DialogHeader className="shrink-0 border-b bg-slate-900 px-4 py-3 pr-12 text-white sm:p-4">
+            <DialogTitle className="text-base text-white sm:text-lg">
               Inventário {request.request_code}
             </DialogTitle>
-            <DialogDescription className="text-slate-300">
+            <DialogDescription className="text-xs text-slate-300 sm:text-sm">
               {found.size} de {items.length} patrimônios encontrados
             </DialogDescription>
           </DialogHeader>
+          <div className="grid shrink-0 grid-cols-2 border-b bg-white p-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setMobilePanel("assets");
+                setMode("typing");
+              }}
+              className={`rounded-lg px-3 py-2.5 text-sm font-semibold ${mobilePanel === "assets" ? "bg-blue-600 text-white shadow" : "text-gray-600"}`}
+            >
+              Bens ({items.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobilePanel("reader")}
+              className={`rounded-lg px-3 py-2.5 text-sm font-semibold ${mobilePanel === "reader" ? "bg-blue-600 text-white shadow" : "text-gray-600"}`}
+            >
+              Leitura ({found.size})
+            </button>
+          </div>
           <div className="grid min-h-0 flex-1 lg:grid-cols-2">
-            <section className="flex min-h-0 flex-col border-r p-4">
-              <div className="mb-3 flex flex-wrap gap-2">
+            <section
+              className={`${mobilePanel === "assets" ? "flex" : "hidden"} min-h-0 flex-col border-r p-3 sm:p-4 lg:flex`}
+            >
+              <div className="mb-3 grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 {request.all_locations && (
                   <select
-                    className="min-w-52 flex-1 rounded-lg border px-3 py-2"
+                    className="col-span-2 min-w-0 rounded-lg border px-3 py-2 sm:min-w-52 sm:flex-1"
                     value={locationId}
                     onChange={(e) => setLocationId(e.target.value)}
                   >
@@ -307,7 +329,7 @@ function InventoryExecution({
                   </select>
                 )}
                 <select
-                  className="rounded-lg border px-3 py-2"
+                  className="min-w-0 rounded-lg border px-2 py-2 text-sm"
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 >
@@ -316,7 +338,7 @@ function InventoryExecution({
                   <option value="nao_encontrado">Não encontrados</option>
                 </select>
                 <select
-                  className="rounded-lg border px-3 py-2"
+                  className="min-w-0 rounded-lg border px-2 py-2 text-sm"
                   value={assetStatusFilter}
                   onChange={(e) => setAssetStatusFilter(e.target.value)}
                 >
@@ -327,7 +349,7 @@ function InventoryExecution({
                   <option value="indisponivel">Indisponível</option>
                 </select>
               </div>
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-2">
                 {loading ? (
                   <LoadingSpinner />
                 ) : (
@@ -336,16 +358,16 @@ function InventoryExecution({
                     return (
                       <article
                         key={item.id}
-                        className={`flex items-center gap-3 rounded-xl border p-3 ${ok ? "border-emerald-300 bg-emerald-50" : "border-red-200 bg-red-50"}`}
+                        className={`flex items-center gap-2 rounded-xl border p-2.5 sm:gap-3 sm:p-3 ${ok ? "border-emerald-300 bg-emerald-50" : "border-red-200 bg-red-50"}`}
                       >
                         {item.equipments?.image_url ? (
                           <img
                             src={item.equipments.image_url}
                             alt=""
-                            className="h-12 w-12 rounded-lg object-cover"
+                            className="h-11 w-11 shrink-0 rounded-lg object-cover sm:h-12 sm:w-12"
                           />
                         ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white sm:h-12 sm:w-12">
                             <Barcode />
                           </div>
                         )}
@@ -368,8 +390,10 @@ function InventoryExecution({
                 )}
               </div>
             </section>
-            <section className="flex min-h-0 flex-col p-4">
-              <div className="mb-4 flex rounded-xl bg-slate-100 p-1">
+            <section
+              className={`${mobilePanel === "reader" ? "flex" : "hidden"} min-h-0 flex-col p-3 sm:p-4 lg:flex`}
+            >
+              <div className="mb-3 flex shrink-0 rounded-xl bg-slate-100 p-1 sm:mb-4">
                 <button
                   type="button"
                   onClick={() => setMode("typing")}
@@ -391,28 +415,30 @@ function InventoryExecution({
                     e.preventDefault();
                     registerCode(code);
                   }}
-                  className="flex gap-2"
+                  className="flex shrink-0 flex-col gap-2 sm:flex-row"
                 >
                   <input
                     autoFocus
-                    className="flex-1 rounded-xl border px-4 py-3 text-lg"
+                    className="min-w-0 flex-1 rounded-xl border px-4 py-3 text-base sm:text-lg"
                     placeholder="Digite o número patrimonial"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                   />
-                  <Button type="submit">Registrar</Button>
+                  <Button type="submit" className="w-full sm:w-auto">
+                    Registrar
+                  </Button>
                 </form>
               ) : (
-                <div className="overflow-hidden rounded-2xl bg-black">
+                <div className="shrink-0 overflow-hidden rounded-2xl bg-black">
                   <video
                     ref={videoRef}
-                    className="max-h-72 w-full object-cover"
+                    className="h-56 w-full object-cover sm:h-auto sm:max-h-72"
                     muted
                     playsInline
                   />
                 </div>
               )}
-              <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+              <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain sm:mt-4">
                 <h3 className="mb-2 font-semibold">
                   Itens encontrados nesta conferência
                 </h3>
@@ -436,33 +462,39 @@ function InventoryExecution({
               )}
             </section>
           </div>
-          <div className="flex flex-wrap justify-end gap-2 border-t bg-white p-4">
-            <Button variant="outline" onClick={onClose}>
+          <div className="grid shrink-0 grid-cols-2 gap-2 border-t bg-white p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:flex sm:flex-wrap sm:justify-end sm:p-4">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="order-2 sm:order-none"
+            >
               Cancelar
             </Button>
             <Button
               variant="outline"
+              className="col-span-2 order-1 text-xs sm:order-none sm:col-auto sm:text-sm"
               disabled={busy || currentScope?.status === "concluido"}
               onClick={() => void save(false)}
             >
               <Save size={16} /> Salvar atual e concluir depois
             </Button>
             <Button
+              className="order-3 text-xs sm:order-none sm:text-sm"
               disabled={busy || currentScope?.status === "concluido"}
               onClick={() => setConfirming(true)}
             >
-              <ClipboardCheck size={16} /> Concluir inventário do ambiente
+              <ClipboardCheck size={16} /> Concluir ambiente
             </Button>
           </div>
         </div>
         {confirming && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 void save(true);
               }}
-              className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl"
+              className="w-full max-w-md space-y-4 rounded-t-3xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl sm:p-6"
             >
               <h3 className="text-lg font-bold">Confirmar conclusão</h3>
               <p className="text-sm text-gray-600">
@@ -587,7 +619,7 @@ export function InventoryWorkflowDialog({
   return (
     <>
       <Dialog open={open && !executing} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[92dvh] max-w-5xl overflow-y-auto">
+        <DialogContent className="h-[100dvh] w-screen max-w-none overflow-y-auto rounded-none border-0 p-3 sm:h-auto sm:max-h-[92dvh] sm:w-auto sm:max-w-5xl sm:rounded-xl sm:border sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardCheck className="text-blue-600" /> Modo inventário
@@ -599,7 +631,7 @@ export function InventoryWorkflowDialog({
           {currentProfile.role === "administrador" && (
             <form
               onSubmit={create}
-              className="grid gap-3 rounded-2xl border bg-blue-50 p-4 md:grid-cols-4"
+              className="grid gap-3 rounded-2xl border bg-blue-50 p-3 sm:p-4 md:grid-cols-4"
             >
               <label>
                 <span className="mb-1 block text-xs font-semibold">
@@ -676,7 +708,7 @@ export function InventoryWorkflowDialog({
                 </select>
               </label>
               <div className="flex items-end">
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full py-3">
                   Gerar solicitação
                 </Button>
               </div>
@@ -696,7 +728,7 @@ export function InventoryWorkflowDialog({
               {requests.map((request) => (
                 <article
                   key={request.id}
-                  className="grid gap-3 rounded-2xl border p-4 md:grid-cols-[1fr_1fr_auto]"
+                  className="grid gap-3 rounded-2xl border p-3 sm:p-4 md:grid-cols-[1fr_1fr_auto]"
                 >
                   <div>
                     <strong className="text-blue-800">
@@ -723,6 +755,7 @@ export function InventoryWorkflowDialog({
                     </p>
                   </div>
                   <Button
+                    className="w-full md:w-auto"
                     disabled={
                       request.status === "concluido" ||
                       request.status === "cancelado"
@@ -735,7 +768,7 @@ export function InventoryWorkflowDialog({
               ))}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 -mx-3 mt-3 border-t bg-white p-3 sm:static sm:mx-0 sm:border-0 sm:p-0">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Fechar
             </Button>
