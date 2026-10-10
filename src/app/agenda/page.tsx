@@ -216,6 +216,11 @@ function validCnpj(value: string) {
 
 export default function AgendaPage() {
   const { user, profile } = useAuth();
+  const canCreateEvent = [
+    "administrador",
+    "administracao",
+    "visitante",
+  ].includes(profile?.role ?? "");
   const [events, setEvents] = useState<AgendaEvent[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [spaces, setSpaces] = useState<Array<{ id: string; name: string }>>([]);
@@ -276,6 +281,16 @@ export default function AgendaPage() {
         setCalendarSpace((current) => current || data?.[0]?.id || "");
       });
   }, [loadEvents]);
+
+  useEffect(() => {
+    if (!events.length) return;
+    const eventId = new URLSearchParams(window.location.search).get("evento");
+    if (!eventId) return;
+    const linkedEvent = events.find((event) => event.id === eventId);
+    if (!linkedEvent) return;
+    setView("table");
+    setSearch(linkedEvent.title);
+  }, [events]);
 
   useEffect(() => {
     if (view !== "calendar" || !calendarSpace) return;
@@ -703,7 +718,14 @@ export default function AgendaPage() {
 
   return (
     <ProtectedRoute
-      allowedRoles={["administrador", "administracao", "recepcao", "visitante"]}
+      allowedRoles={[
+        "administrador",
+        "administracao",
+        "recepcao",
+        "manutencao",
+        "limpeza",
+        "visitante",
+      ]}
     >
       <MainLayout
         userName={profile?.full_name || "Usuário"}
@@ -729,10 +751,12 @@ export default function AgendaPage() {
                 Calendário
               </button>
             </div>
-            <Button onClick={() => openForm()}>
-              <Plus size={19} />
-              Nova solicitação
-            </Button>
+            {canCreateEvent && (
+              <Button onClick={() => openForm()}>
+                <Plus size={19} />
+                Nova solicitação
+              </Button>
+            )}
           </div>
           {error && (
             <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -783,10 +807,12 @@ export default function AgendaPage() {
                   title="Nenhuma solicitação encontrada"
                   description="Crie uma solicitação ou ajuste os filtros."
                   action={
-                    <Button onClick={() => openForm()}>
-                      <Plus size={18} />
-                      Nova solicitação
-                    </Button>
+                    canCreateEvent ? (
+                      <Button onClick={() => openForm()}>
+                        <Plus size={18} />
+                        Nova solicitação
+                      </Button>
+                    ) : undefined
                   }
                 />
               ) : (
@@ -1083,9 +1109,9 @@ export default function AgendaPage() {
                                 return (
                                   <button
                                     key={date}
-                                    disabled={unavailable}
+                                    disabled={unavailable || !canCreateEvent}
                                     onClick={() => openForm(undefined, date)}
-                                    className={`min-h-32 min-w-0 overflow-hidden rounded-lg border p-1.5 text-left sm:min-h-28 sm:p-2 ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : "border-green-200 bg-green-50 hover:bg-green-100"}`}
+                                    className={`min-h-32 min-w-0 overflow-hidden rounded-lg border p-1.5 text-left sm:min-h-28 sm:p-2 ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : canCreateEvent ? "border-green-200 bg-green-50 hover:bg-green-100" : "cursor-default border-green-200 bg-green-50"}`}
                                   >
                                     <strong>{day}</strong>
                                     <p

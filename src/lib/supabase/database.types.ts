@@ -78,6 +78,9 @@ export type Database = {
           solution: string | null;
           evidence_url: string | null;
           evidence_file_type: string | null;
+          event_id: string | null;
+          space_id: string | null;
+          is_automatic_event_checklist: boolean;
           occurred_at: string;
           deadline: string | null;
           resolved_at: string | null;

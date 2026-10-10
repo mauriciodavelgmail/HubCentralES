@@ -58,6 +58,29 @@ const PRIORITY_COLORS: Record<string, string> = {
   critica: "bg-red-100 text-red-800",
 };
 
+function OccurrenceDescription({ description }: { description: string }) {
+  const [firstLine, ...remainingLines] = description.split("\n");
+  const eventLink = firstLine.match(/^\[([^\]]+)\]\(([^)]+)\)(.*)$/);
+  return (
+    <div className="whitespace-pre-wrap text-sm text-gray-600">
+      {eventLink ? (
+        <>
+          <a
+            href={eventLink[2]}
+            className="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900"
+          >
+            {eventLink[1]}
+          </a>
+          {eventLink[3]}
+        </>
+      ) : (
+        firstLine
+      )}
+      {remainingLines.length > 0 && `\n${remainingLines.join("\n")}`}
+    </div>
+  );
+}
+
 export default function OcorrenciasPage() {
   const { user, profile } = useAuth();
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
@@ -338,12 +361,13 @@ export default function OcorrenciasPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <p className="text-sm text-gray-600">
-                      {occurrence.description}
-                    </p>
+                    <OccurrenceDescription
+                      description={occurrence.description}
+                    />
                     {occurrence.solution && (
-                      <div className="p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
-                        <strong>Solução:</strong> {occurrence.solution}
+                      <div className="whitespace-pre-wrap rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                        <strong className="mb-1 block">Solução:</strong>
+                        {occurrence.solution}
                       </div>
                     )}
                     <div className="flex justify-end gap-2">
@@ -421,6 +445,7 @@ export default function OcorrenciasPage() {
                     <option value="manutencao">Manutenção</option>
                     <option value="limpeza">Limpeza</option>
                     <option value="seguranca">Segurança</option>
+                    <option value="checklist_evento">Check-list evento</option>
                     <option value="outro">Outro</option>
                   </select>
                 </div>
