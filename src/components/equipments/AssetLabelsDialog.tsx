@@ -124,27 +124,72 @@ export function AssetLabelsDialog({
         const image = await generateCode(equipment.patrimonial_code, type);
         pdf.setDrawColor(190);
         pdf.roundedRect(x, y, labelWidth, labelHeight, 2, 2);
-        if (type === "qr") pdf.addImage(image, "PNG", x + 3, y + 3, 29, 29);
-        else pdf.addImage(image, "PNG", x + 3, y + 4, 38, 18);
-        const textX = type === "qr" ? x + 35 : x + 44;
-        pdf.setFontSize(8);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(equipment.patrimonial_code, textX, y + 7, {
-          maxWidth: labelWidth - (textX - x) - 3,
-        });
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(7);
-        pdf.text(equipment.description || equipment.name, textX, y + 13, {
-          maxWidth: labelWidth - (textX - x) - 3,
-        });
-        pdf.text(`Local: ${equipment.location}`, textX, y + 24, {
-          maxWidth: labelWidth - (textX - x) - 3,
-        });
-        if (type === "barcode")
-          pdf.text(equipment.patrimonial_code, x + 5, y + 29, {
-            maxWidth: 36,
-            align: "center",
+        if (type === "qr") {
+          pdf.addImage(image, "PNG", x + 3, y + 3, 29, 29);
+          const textX = x + 35;
+          pdf.setFontSize(8);
+          pdf.setFont("helvetica", "bold");
+          pdf.text(equipment.patrimonial_code, textX, y + 7, {
+            maxWidth: labelWidth - (textX - x) - 3,
           });
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(7);
+          pdf.text(equipment.description || equipment.name, textX, y + 13, {
+            maxWidth: labelWidth - (textX - x) - 3,
+          });
+          pdf.text(`Local: ${equipment.location}`, textX, y + 24, {
+            maxWidth: labelWidth - (textX - x) - 3,
+          });
+        } else {
+          const barcodeX = x + 3;
+          const barcodeY = y + 4;
+          const barcodeWidth = 38;
+          const barcodeHeight = 18;
+          const detailsX = x + 44;
+          const detailsWidth = labelWidth - (detailsX - x) - 3;
+
+          pdf.addImage(
+            image,
+            "PNG",
+            barcodeX,
+            barcodeY,
+            barcodeWidth,
+            barcodeHeight,
+          );
+
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(7.5);
+          const descriptionLines = pdf
+            .splitTextToSize(
+              equipment.description || equipment.name,
+              detailsWidth,
+            )
+            .slice(0, 3);
+          pdf.text(descriptionLines, detailsX, barcodeY + 3, {
+            lineHeightFactor: 1.05,
+          });
+
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(7);
+          const locationLines = pdf
+            .splitTextToSize(`Local: ${equipment.location}`, detailsWidth)
+            .slice(0, 2);
+          pdf.text(locationLines, detailsX, barcodeY + 13, {
+            lineHeightFactor: 1.05,
+          });
+
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8);
+          pdf.text(
+            equipment.patrimonial_code,
+            barcodeX + barcodeWidth / 2,
+            barcodeY + barcodeHeight + 4,
+            {
+              align: "center",
+              maxWidth: barcodeWidth,
+            },
+          );
+        }
       }
       pdf.save(
         `etiquetas-patrimoniais-${type}-${new Date().toISOString().slice(0, 10)}.pdf`,
