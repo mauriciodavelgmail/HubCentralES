@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, LoadingSpinner, EmptyState, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui';
 import { ProtectedRoute } from '@/lib/auth/protected-route';
 import { useAuth } from '@/lib/auth/context';
 import { getDocuments, createDocument, updateDocument, deleteDocument, Document } from '@/lib/supabase/documents';
-import { Search, Plus, Download, Trash2, Edit, AlertCircle, CheckCircle, Clock, Upload } from 'lucide-react';
+import { Search, Plus, Download, Trash2, Edit, AlertCircle, CheckCircle, Clock, Upload, ChevronUp, ChevronDown } from 'lucide-react';
 import { uploadDocument } from '@/lib/supabase/storage';
 
 export default function DocumentosPage() {
@@ -20,6 +20,10 @@ export default function DocumentosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [sort, setSort] = useState<{
+    key: 'title' | 'control_id' | 'category' | 'status' | 'validity_date';
+    direction: 'asc' | 'desc';
+  }>({ key: 'title', direction: 'asc' });
 
   const [formData, setFormData] = useState({
     title: '',
@@ -130,12 +134,29 @@ export default function DocumentosPage() {
     }
   };
 
-  const filteredDocuments = documents.filter(doc => {
+  const filteredDocuments = useMemo(() => documents.filter(doc => {
     const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       doc.control_id?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || doc.category === selectedCategory;
     return matchesSearch && matchesCategory;
-  });
+  }).sort((first, second) => {
+    const firstValue = first[sort.key] ?? '';
+    const secondValue = second[sort.key] ?? '';
+    const result = String(firstValue).localeCompare(String(secondValue), 'pt-BR', { numeric: true });
+    return sort.direction === 'asc' ? result : -result;
+  }), [documents, searchQuery, selectedCategory, sort]);
+
+  const changeSort = (key: typeof sort.key) => setSort(current => ({
+    key,
+    direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+  }));
+
+  const SortHeader = ({ field, children }: { field: typeof sort.key; children: React.ReactNode }) => (
+    <button type="button" onClick={() => changeSort(field)} className="flex items-center gap-1 font-semibold text-gray-700">
+      {children}
+      {sort.key === field && (sort.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+    </button>
+  );
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -234,11 +255,11 @@ export default function DocumentosPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Título</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">ID Controle</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Categoria</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Validade</th>
+                        <th className="px-4 py-3 text-left"><SortHeader field="title">Título</SortHeader></th>
+                        <th className="px-4 py-3 text-left"><SortHeader field="control_id">ID Controle</SortHeader></th>
+                        <th className="px-4 py-3 text-left"><SortHeader field="category">Categoria</SortHeader></th>
+                        <th className="px-4 py-3 text-left"><SortHeader field="status">Status</SortHeader></th>
+                        <th className="px-4 py-3 text-left"><SortHeader field="validity_date">Validade</SortHeader></th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">Ações</th>
                       </tr>
                     </thead>

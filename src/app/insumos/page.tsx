@@ -54,6 +54,8 @@ import {
   ClipboardList,
   Image as ImageIcon,
   MapPin,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 const STATUSES = ["normal", "baixo", "critico"];
@@ -172,6 +174,10 @@ export default function InsumosPage() {
     name: string;
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<{
+    key: "name" | "code" | "category" | "quantity" | "pending" | "status";
+    direction: "asc" | "desc";
+  }>({ key: "name", direction: "asc" });
   const canManage = ["administrador", "administracao"].includes(
     profile?.role || "",
   );
@@ -692,16 +698,71 @@ export default function InsumosPage() {
     window.location.assign("/compras");
   };
 
-  const filteredSupplies = supplies.filter((supply) => {
-    const matchesSearch =
-      supply.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      supply.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      supply.supplier?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      !filterCategory || supply.category === filterCategory;
-    const matchesStatus = !filterStatus || stockStatus(supply) === filterStatus;
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  const filteredSupplies = supplies
+    .filter((supply) => {
+      const matchesSearch =
+        supply.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        supply.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        supply.supplier?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory =
+        !filterCategory || supply.category === filterCategory;
+      const matchesStatus =
+        !filterStatus || stockStatus(supply) === filterStatus;
+      return matchesSearch && matchesCategory && matchesStatus;
+    })
+    .sort((first, second) => {
+      const values = (
+        supply: ManagedSupply,
+      ): Record<typeof sort.key, string | number> => ({
+        name: supply.name,
+        code: supply.code ?? "",
+        category:
+          categories.find(
+            (category) => category.category_key === supply.category,
+          )?.name ?? supply.category,
+        quantity: supply.current_quantity,
+        pending: pendingQuantities[supply.id] ?? 0,
+        status: stockStatus(supply),
+      });
+      const firstValue = values(first)[sort.key];
+      const secondValue = values(second)[sort.key];
+      const result =
+        typeof firstValue === "number" && typeof secondValue === "number"
+          ? firstValue - secondValue
+          : String(firstValue).localeCompare(String(secondValue), "pt-BR", {
+              numeric: true,
+            });
+      return sort.direction === "asc" ? result : -result;
+    });
+
+  const changeSort = (key: typeof sort.key) =>
+    setSort((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+
+  const SortHeader = ({
+    field,
+    children,
+  }: {
+    field: typeof sort.key;
+    children: React.ReactNode;
+  }) => (
+    <button
+      type="button"
+      onClick={() => changeSort(field)}
+      className="flex items-center gap-1 font-semibold text-gray-700"
+    >
+      {children}
+      {sort.key === field &&
+        (sort.direction === "asc" ? (
+          <ChevronUp size={14} />
+        ) : (
+          <ChevronDown size={14} />
+        ))}
+    </button>
+  );
 
   const criticalItems = supplies.filter((s) => stockStatus(s) === "critico");
 
@@ -922,23 +983,23 @@ export default function InsumosPage() {
                         <th className="w-20 px-4 py-3 text-left font-semibold text-gray-700">
                           Foto
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Nome
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="name">Nome</SortHeader>
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Código
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="code">Código</SortHeader>
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Categoria
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="category">Categoria</SortHeader>
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Quantidade
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="quantity">Quantidade</SortHeader>
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Em requisição
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="pending">Em requisição</SortHeader>
                         </th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                          Status
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="status">Status</SortHeader>
                         </th>
                         {canManage && (
                           <th className="px-4 py-3 text-left font-semibold text-gray-700">

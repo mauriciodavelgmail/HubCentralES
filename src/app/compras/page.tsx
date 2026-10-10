@@ -12,6 +12,8 @@ import {
   Search,
   ShoppingCart,
   Trash2,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout";
 import {
@@ -146,6 +148,16 @@ export default function ComprasPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [batchPrefillHandled, setBatchPrefillHandled] = useState(false);
   const [purchaseLinkHandled, setPurchaseLinkHandled] = useState(false);
+  const [sort, setSort] = useState<{
+    key:
+      | "purchase_number"
+      | "purchase_type"
+      | "description"
+      | "supplier"
+      | "total_cost"
+      | "status";
+    direction: "asc" | "desc";
+  }>({ key: "purchase_number", direction: "desc" });
 
   const processSupplyAlerts = async () => {
     const { data } = await supabase.auth.getSession();
@@ -230,17 +242,58 @@ export default function ComprasPage() {
 
   const filtered = useMemo(
     () =>
-      purchases.filter((purchase) => {
-        const term = search.toLowerCase();
-        return (
-          (!statusFilter || purchase.status === statusFilter) &&
-          (!term ||
-            purchase.purchase_number.toLowerCase().includes(term) ||
-            purchase.description?.toLowerCase().includes(term) ||
-            purchase.supplier?.toLowerCase().includes(term))
-        );
-      }),
-    [purchases, search, statusFilter],
+      purchases
+        .filter((purchase) => {
+          const term = search.toLowerCase();
+          return (
+            (!statusFilter || purchase.status === statusFilter) &&
+            (!term ||
+              purchase.purchase_number.toLowerCase().includes(term) ||
+              purchase.description?.toLowerCase().includes(term) ||
+              purchase.supplier?.toLowerCase().includes(term))
+          );
+        })
+        .sort((first, second) => {
+          const firstValue = first[sort.key] ?? "";
+          const secondValue = second[sort.key] ?? "";
+          const result =
+            typeof firstValue === "number" && typeof secondValue === "number"
+              ? firstValue - secondValue
+              : String(firstValue).localeCompare(String(secondValue), "pt-BR", {
+                  numeric: true,
+                });
+          return sort.direction === "asc" ? result : -result;
+        }),
+    [purchases, search, sort, statusFilter],
+  );
+
+  const changeSort = (key: typeof sort.key) =>
+    setSort((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+
+  const SortHeader = ({
+    field,
+    children,
+  }: {
+    field: typeof sort.key;
+    children: React.ReactNode;
+  }) => (
+    <button
+      type="button"
+      onClick={() => changeSort(field)}
+      className="flex items-center gap-1 font-semibold text-gray-700"
+    >
+      {children}
+      {sort.key === field &&
+        (sort.direction === "asc" ? (
+          <ChevronUp size={14} />
+        ) : (
+          <ChevronDown size={14} />
+        ))}
+    </button>
   );
 
   const openNew = () => {
@@ -468,12 +521,26 @@ export default function ComprasPage() {
                 <table className="w-full min-w-[980px] text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <Th>Pedido</Th>
-                      <Th>Tipo</Th>
-                      <Th>Descrição / Itens</Th>
-                      <Th>Fornecedor</Th>
-                      <Th>Valor</Th>
-                      <Th>Status</Th>
+                      <Th>
+                        <SortHeader field="purchase_number">Pedido</SortHeader>
+                      </Th>
+                      <Th>
+                        <SortHeader field="purchase_type">Tipo</SortHeader>
+                      </Th>
+                      <Th>
+                        <SortHeader field="description">
+                          Descrição / Itens
+                        </SortHeader>
+                      </Th>
+                      <Th>
+                        <SortHeader field="supplier">Fornecedor</SortHeader>
+                      </Th>
+                      <Th>
+                        <SortHeader field="total_cost">Valor</SortHeader>
+                      </Th>
+                      <Th>
+                        <SortHeader field="status">Status</SortHeader>
+                      </Th>
                       <Th>Ações</Th>
                     </tr>
                   </thead>
