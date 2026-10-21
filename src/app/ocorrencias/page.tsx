@@ -139,6 +139,12 @@ export default function OcorrenciasPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (!editingId && !profile?.id) {
+        throw new Error(
+          "Não foi possível identificar o usuário responsável. Atualize a página e entre novamente se o problema persistir.",
+        );
+      }
+
       let finalEvidenceUrl = formData.evidence_url;
 
       if (selectedFile) {
@@ -148,7 +154,11 @@ export default function OcorrenciasPage() {
         setUploading(false);
       }
 
-      const submitData = { ...formData, evidence_url: finalEvidenceUrl };
+      const submitData = {
+        ...formData,
+        evidence_url: finalEvidenceUrl,
+        ...(!editingId && { reporter_id: profile!.id }),
+      };
 
       if (editingId) {
         await updateOccurrence(editingId, submitData as any);
