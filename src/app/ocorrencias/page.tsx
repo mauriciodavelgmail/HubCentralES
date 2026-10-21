@@ -58,6 +58,23 @@ const PRIORITY_COLORS: Record<string, string> = {
   critica: "bg-red-100 text-red-800",
 };
 
+function isSupplyRequisitionConstraintError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const databaseError = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+  };
+  const description = `${databaseError.message ?? ""} ${databaseError.details ?? ""}`;
+
+  return (
+    databaseError.code === "23503" &&
+    (description.includes("supply_requisitions_occurrence_id_fkey") ||
+      description.includes("supply_requisitions"))
+  );
+}
+
 function OccurrenceDescription({ description }: { description: string }) {
   const [firstLine, ...remainingLines] = description.split("\n");
   const eventLink = firstLine.match(/^\[([^\]]+)\]\(([^)]+)\)(.*)$/);
@@ -94,6 +111,8 @@ export default function OcorrenciasPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [requisitionOccurrence, setRequisitionOccurrence] =
+    useState<Occurrence | null>(null);
+  const [linkedSupplyOccurrence, setLinkedSupplyOccurrence] =
     useState<Occurrence | null>(null);
 
   const [formData, setFormData] = useState({
@@ -187,13 +206,20 @@ export default function OcorrenciasPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (occurrence: Occurrence) => {
     if (window.confirm("Deseja deletar esta ocorrência?")) {
       try {
-        await deleteOccurrence(id);
+        setError("");
+        await deleteOccurrence(occurrence.id);
         await loadOccurrences();
-      } catch (err: any) {
-        setError("Erro ao deletar: " + err.message);
+      } catch (err: unknown) {
+        if (isSupplyRequisitionConstraintError(err)) {
+          setLinkedSupplyOccurrence(occurrence);
+          return;
+        }
+
+        const message = err instanceof Error ? err.message : "Erro desconhecido";
+        setError("Erro ao deletar: " + message);
       }
     }
   };
@@ -398,7 +424,7 @@ export default function OcorrenciasPage() {
                         Editar
                       </Button>
                       <Button
-                        onClick={() => handleDelete(occurrence.id)}
+                        onClick={() => handleDelete(occurrence)}
                         variant="danger"
                         size="sm"
                       >
@@ -603,6 +629,34 @@ export default function OcorrenciasPage() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={Boolean(linkedSupplyOccurrence)}
+          onOpenChange={(open) => {
+            if (!open) setLinkedSupplyOccurrence(null);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-amber-100">
+                <AlertCircle className="h-6 w-6 text-amber-700" />
+              </div>
+              <DialogTitle>Não foi possível excluir a ocorrência</DialogTitle>
+              <DialogDescription className="mt-2 leading-6">
+                A ocorrência #{linkedSupplyOccurrence?.occurrence_number} possui
+                uma ou mais requisições de insumos vinculadas. Remova ou
+                desvincule essas requisições antes de excluir a ocorrência.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                onClick={() => setLinkedSupplyOccurrence(null)}
+              >
+                Entendi
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
         <SupplyRequisitionDialog
