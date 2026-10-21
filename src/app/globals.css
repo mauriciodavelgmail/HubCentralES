@@ -3,6 +3,7 @@
 :root {
   --background: #F8F5EF;
   --foreground: #1F2933;
+  color-scheme: light;
   
   /* HUB ES+ Colors */
   --color-primary: #0057B8;
@@ -21,13 +22,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1a1a1a;
-    --foreground: #f5f5f5;
-  }
 }
 
 * {
@@ -70,6 +64,30 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
+}
+
+/* Keep form values readable on devices configured for dark mode. */
+input,
+textarea,
+select {
+  color: #111827;
+  -webkit-text-fill-color: #111827;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280;
+  opacity: 1;
+  -webkit-text-fill-color: #6b7280;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #111827;
+  box-shadow: 0 0 0 1000px #ffffff inset;
 }
 
 /* Input focus styles */
