@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 type ParticipantRow = {
+  event_id: string;
   city: string | null;
   neighborhood: string | null;
   presence_confirmed: boolean;
@@ -13,6 +14,19 @@ type LocationGroup = {
   neighborhood: string;
   total: number;
   present: number;
+  absent: number;
+  pending: number;
+};
+
+type EventRow = {
+  id: string;
+  title: string;
+  start_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  requester_id: string;
+  spaces: { name: string } | null;
 };
 
 type GeocodeRow = {
@@ -32,6 +46,10 @@ const normalize = (value: string) =>
 
 const locationKey = (city: string, neighborhood: string) =>
   `${normalize(city)}|${normalize(neighborhood)}`;
+
+const eventEnded = (event: EventRow) =>
+  event.status === "realizada" ||
+  Date.now() > new Date(`${event.start_date}T${event.end_time}-03:00`).getTime();
 
 function database() {
   return createClient(
@@ -92,37 +110,63 @@ export async function GET(
 
     const db = database();
     const { id } = await context.params;
-    const [{ data: profile }, { data: event, error: eventError }] =
-      await Promise.all([
-        db
-          .from("profiles")
-          .select("id,role")
-          .eq("user_id", authData.user.id)
-          .eq("is_active", true)
-          .single(),
-        db
-          .from("events")
-          .select("id,title,start_date,start_time,end_time,status,requester_id,spaces(name)")
-          .eq("id", id)
-          .single(),
-      ]);
-
-    if (eventError || !event)
-      return NextResponse.json({ error: "Evento não encontrado." }, { status: 404 });
-    if (
-      !profile ||
-      (!['administrador', 'administracao', 'recepcao'].includes(profile.role) &&
-        event.requester_id !== profile.id)
-    )
+    const { data: profile } = await db
+      .from("profiles")
+      .select("id,role")
+      .eq("user_id", authData.user.id)
+      .eq("is_active", true)
+      .single();
+    if (!profile)
       return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403 });
 
-    const { data: participantData, error: participantError } = await db
-      .from("attendance_list")
-      .select("city,neighborhood,presence_confirmed")
-      .eq("event_id", id);
+    const teamRoles = ["administrador", "administracao", "recepcao"];
+    let eventsQuery = db
+      .from("events")
+      .select(
+        "id,title,start_date,start_time,end_time,status,requester_id,spaces(name)",
+      )
+      .in("status", ["confirmada", "realizada"])
+      .order("start_date", { ascending: false });
+    if (!teamRoles.includes(profile.role))
+      eventsQuery = eventsQuery.eq("requester_id", profile.id);
+
+    const { data: eventData, error: eventsError } = await eventsQuery;
+    if (eventsError) throw eventsError;
+    const availableEvents = (eventData ?? []) as unknown as EventRow[];
+    const aggregate = id === "todos";
+    const selectedEvents = aggregate
+      ? availableEvents
+      : availableEvents.filter((event) => event.id === id);
+    if (!aggregate && !selectedEvents.length)
+      return NextResponse.json({ error: "Evento não encontrado." }, { status: 404 });
+
+    const selectedIds = selectedEvents.map((event) => event.id);
+    const event = aggregate
+      ? {
+          id: "todos",
+          title: "Todos os eventos",
+          start_date: "",
+          start_time: "",
+          end_time: "",
+          status: "agregado",
+          requester_id: profile.id,
+          spaces: null,
+        }
+      : selectedEvents[0];
+
+    const participantResult = selectedIds.length
+      ? await db
+          .from("attendance_list")
+          .select("event_id,city,neighborhood,presence_confirmed")
+          .in("event_id", selectedIds)
+      : { data: [] as ParticipantRow[], error: null };
+    const { data: participantData, error: participantError } = participantResult;
     if (participantError) throw participantError;
 
     const participants = (participantData ?? []) as ParticipantRow[];
+    const endedEvents = new Set(
+      selectedEvents.filter(eventEnded).map((selectedEvent) => selectedEvent.id),
+    );
     const grouped = new Map<string, LocationGroup>();
     let withoutLocation = 0;
     for (const participant of participants) {
@@ -139,9 +183,13 @@ export async function GET(
         neighborhood,
         total: 0,
         present: 0,
+        absent: 0,
+        pending: 0,
       };
       current.total += 1;
       if (participant.presence_confirmed) current.present += 1;
+      else if (endedEvents.has(participant.event_id)) current.absent += 1;
+      else current.pending += 1;
       grouped.set(key, current);
     }
 
@@ -182,6 +230,10 @@ export async function GET(
     }
 
     const present = participants.filter((item) => item.presence_confirmed).length;
+    const absent = participants.filter(
+      (item) => !item.presence_confirmed && endedEvents.has(item.event_id),
+    ).length;
+    const pending = participants.length - present - absent;
     const locations = [...grouped.values()].map((location) => {
       const point = coordinates.get(location.key);
       return {
@@ -190,6 +242,8 @@ export async function GET(
         total: location.total,
         present: location.present,
         notPresent: location.total - location.present,
+        absent: location.absent,
+        pending: location.pending,
         latitude: point?.status === "resolved" ? point.latitude : null,
         longitude: point?.status === "resolved" ? point.longitude : null,
       };
@@ -200,10 +254,18 @@ export async function GET(
 
     return NextResponse.json({
       event,
+      aggregate,
+      availableEvents: availableEvents.map((availableEvent) => ({
+        id: availableEvent.id,
+        title: availableEvent.title,
+        start_date: availableEvent.start_date,
+      })),
       summary: {
         total: participants.length,
         present,
         notPresent: participants.length - present,
+        absent,
+        pending,
         withoutLocation,
       },
       locations,

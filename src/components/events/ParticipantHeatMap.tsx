@@ -15,7 +15,12 @@ const escapeHtml = (value: string) =>
       })[character]!,
   );
 
-export type HeatMetric = "total" | "present" | "notPresent";
+export type HeatMetric =
+  | "total"
+  | "present"
+  | "notPresent"
+  | "absent"
+  | "pending";
 
 export interface HeatLocation {
   city: string;
@@ -23,6 +28,8 @@ export interface HeatLocation {
   total: number;
   present: number;
   notPresent: number;
+  absent: number;
+  pending: number;
   latitude: number | null;
   longitude: number | null;
 }
@@ -31,10 +38,12 @@ export function ParticipantHeatMap({
   locations,
   metric,
   absenceLabel,
+  aggregate = false,
 }: {
   locations: HeatLocation[];
   metric: HeatMetric;
   absenceLabel: string;
+  aggregate?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState("");
@@ -102,7 +111,7 @@ export function ParticipantHeatMap({
               fillOpacity: 0.85,
             })
               .bindTooltip(
-                `<strong>${escapeHtml(item.neighborhood)}</strong><br>${escapeHtml(item.city)}<br>Total: ${item.total}<br>Presentes: ${item.present}<br>${escapeHtml(absenceLabel)}: ${item.notPresent}`,
+                `<strong>${escapeHtml(item.neighborhood)}</strong><br>${escapeHtml(item.city)}<br>Total: ${item.total}<br>Presentes: ${item.present}<br>${aggregate ? `Ausentes: ${item.absent}<br>Não confirmados: ${item.pending}` : `${escapeHtml(absenceLabel)}: ${item.notPresent}`}`,
               )
               .addTo(map!);
           });
@@ -122,7 +131,7 @@ export function ParticipantHeatMap({
       cancelled = true;
       map?.remove();
     };
-  }, [absenceLabel, locations, metric]);
+  }, [absenceLabel, aggregate, locations, metric]);
 
   return (
     <div className="relative">

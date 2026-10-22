@@ -754,12 +754,28 @@ export default function AgendaPage() {
                 Calendário
               </button>
             </div>
-            {canCreateEvent && (
-              <Button onClick={() => openForm()}>
-                <Plus size={19} />
-                Nova solicitação
-              </Button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {[
+                "administrador",
+                "administracao",
+                "recepcao",
+                "visitante",
+              ].includes(profile?.role ?? "") && (
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/agenda/todos/dashboard")}
+                >
+                  <BarChart3 size={18} />
+                  Dashboard geral
+                </Button>
+              )}
+              {canCreateEvent && (
+                <Button onClick={() => openForm()}>
+                  <Plus size={19} />
+                  Nova solicitação
+                </Button>
+              )}
+            </div>
           </div>
           {error && (
             <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">

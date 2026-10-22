@@ -43,6 +43,8 @@ import {
 } from "@/components/events/ParticipantHeatMap";
 
 interface DashboardData {
+  aggregate: boolean;
+  availableEvents: Array<{ id: string; title: string; start_date: string }>;
   event: {
     id: string;
     title: string;
@@ -56,6 +58,8 @@ interface DashboardData {
     total: number;
     present: number;
     notPresent: number;
+    absent: number;
+    pending: number;
     withoutLocation: number;
   };
   locations: HeatLocation[];
@@ -114,17 +118,29 @@ export default function EventDashboardPage() {
   }, []);
 
   const eventFinished = useMemo(() => {
-    if (!data) return false;
+    if (!data || data.aggregate) return false;
+    if (data.event.status === "realizada") return true;
     const end = new Date(`${data.event.start_date}T${data.event.end_time}`);
     return Number.isFinite(end.getTime()) && currentTime > end.getTime();
   }, [currentTime, data]);
-  const absenceLabel = eventFinished ? "Ausentes" : "Não confirmados";
+  const absenceLabel = data?.aggregate
+    ? "Ausentes / não confirmados"
+    : eventFinished
+      ? "Ausentes"
+      : "Não confirmados";
 
   const cityData = useMemo(() => {
     if (!data) return [];
     const cities = new Map<
       string,
-      { name: string; total: number; present: number; notPresent: number }
+      {
+        name: string;
+        total: number;
+        present: number;
+        notPresent: number;
+        absent: number;
+        pending: number;
+      }
     >();
     data.locations.forEach((location) => {
       const key = normalize(location.city);
@@ -133,10 +149,14 @@ export default function EventDashboardPage() {
         total: 0,
         present: 0,
         notPresent: 0,
+        absent: 0,
+        pending: 0,
       };
       city.total += location.total;
       city.present += location.present;
       city.notPresent += location.notPresent;
+      city.absent += location.absent;
+      city.pending += location.pending;
       cities.set(key, city);
     });
     return [...cities.values()].sort((a, b) => b.total - a.total);
@@ -149,14 +169,24 @@ export default function EventDashboardPage() {
   );
 
   const presenceData = data
-    ? [
-        { name: "Presentes", value: data.summary.present, color: "#16a34a" },
-        {
-          name: absenceLabel,
-          value: data.summary.notPresent,
-          color: eventFinished ? "#dc2626" : "#f59e0b",
-        },
-      ]
+    ? data.aggregate
+      ? [
+          { name: "Presentes", value: data.summary.present, color: "#16a34a" },
+          { name: "Ausentes", value: data.summary.absent, color: "#dc2626" },
+          {
+            name: "Não confirmados",
+            value: data.summary.pending,
+            color: "#f59e0b",
+          },
+        ]
+      : [
+          { name: "Presentes", value: data.summary.present, color: "#16a34a" },
+          {
+            name: absenceLabel,
+            value: data.summary.notPresent,
+            color: eventFinished ? "#dc2626" : "#f59e0b",
+          },
+        ]
     : [];
 
   return (
@@ -180,18 +210,46 @@ export default function EventDashboardPage() {
               </h1>
               {data && (
                 <p className="mt-1 text-gray-600">
-                  {data.event.title} ·{" "}
-                  {new Date(`${data.event.start_date}T12:00:00`).toLocaleDateString(
-                    "pt-BR",
+                  {data.event.title}
+                  {!data.aggregate && (
+                    <>
+                      {" · "}
+                      {new Date(
+                        `${data.event.start_date}T12:00:00`,
+                      ).toLocaleDateString("pt-BR")}
+                    </>
                   )}
                   {data.event.spaces?.name ? ` · ${data.event.spaces.name}` : ""}
                 </p>
               )}
             </div>
-            <Button variant="outline" onClick={() => void load()} disabled={loading}>
-              <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
-              Atualizar dados
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {data && (
+                <select
+                  aria-label="Selecionar evento do dashboard"
+                  className="min-w-64 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                  value={data.aggregate ? "todos" : data.event.id}
+                  onChange={(event) => {
+                    setMetric("total");
+                    router.push(`/agenda/${event.target.value}/dashboard`);
+                  }}
+                >
+                  <option value="todos">Todos os eventos</option>
+                  {data.availableEvents.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {new Date(`${event.start_date}T12:00:00`).toLocaleDateString(
+                        "pt-BR",
+                      )}{" "}
+                      — {event.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button variant="outline" onClick={() => void load()} disabled={loading}>
+                <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+                Atualizar dados
+              </Button>
+            </div>
           </div>
 
           {error && (
@@ -206,7 +264,9 @@ export default function EventDashboardPage() {
             </div>
           ) : data ? (
             <>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div
+                className={`grid gap-4 sm:grid-cols-2 ${data.aggregate ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}
+              >
                 <MetricCard
                   title="Total de convidados"
                   value={data.summary.total}
@@ -219,18 +279,35 @@ export default function EventDashboardPage() {
                   icon={<CheckCircle2 className="text-green-700" />}
                   tone="bg-green-50"
                 />
-                <MetricCard
-                  title={absenceLabel}
-                  value={data.summary.notPresent}
-                  icon={
-                    eventFinished ? (
-                      <UserX className="text-red-700" />
-                    ) : (
-                      <Clock3 className="text-amber-700" />
-                    )
-                  }
-                  tone={eventFinished ? "bg-red-50" : "bg-amber-50"}
-                />
+                {data.aggregate ? (
+                  <>
+                    <MetricCard
+                      title="Ausentes"
+                      value={data.summary.absent}
+                      icon={<UserX className="text-red-700" />}
+                      tone="bg-red-50"
+                    />
+                    <MetricCard
+                      title="Não confirmados"
+                      value={data.summary.pending}
+                      icon={<Clock3 className="text-amber-700" />}
+                      tone="bg-amber-50"
+                    />
+                  </>
+                ) : (
+                  <MetricCard
+                    title={absenceLabel}
+                    value={data.summary.notPresent}
+                    icon={
+                      eventFinished ? (
+                        <UserX className="text-red-700" />
+                      ) : (
+                        <Clock3 className="text-amber-700" />
+                      )
+                    }
+                    tone={eventFinished ? "bg-red-50" : "bg-amber-50"}
+                  />
+                )}
                 <MetricCard
                   title="Comparecimento"
                   value={`${data.summary.total ? Math.round((data.summary.present / data.summary.total) * 100) : 0}%`}
@@ -239,7 +316,7 @@ export default function EventDashboardPage() {
                 />
               </div>
 
-              {!eventFinished && (
+              {!data.aggregate && !eventFinished && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   Como o evento ainda não terminou, convidados sem check-in são
                   exibidos como <strong>não confirmados</strong>. Após o horário de
@@ -278,7 +355,11 @@ export default function EventDashboardPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Participantes por cidade</CardTitle>
-                    <CardDescription>Presentes e {absenceLabel.toLowerCase()}</CardDescription>
+                    <CardDescription>
+                      {data.aggregate
+                        ? "Presentes, ausentes e não confirmados"
+                        : `Presentes e ${absenceLabel.toLowerCase()}`}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
@@ -289,12 +370,29 @@ export default function EventDashboardPage() {
                         <Tooltip />
                         <Legend />
                         <Bar dataKey="present" name="Presentes" stackId="a" fill="#16a34a" />
-                        <Bar
-                          dataKey="notPresent"
-                          name={absenceLabel}
-                          stackId="a"
-                          fill={eventFinished ? "#dc2626" : "#f59e0b"}
-                        />
+                        {data.aggregate ? (
+                          <>
+                            <Bar
+                              dataKey="absent"
+                              name="Ausentes"
+                              stackId="a"
+                              fill="#dc2626"
+                            />
+                            <Bar
+                              dataKey="pending"
+                              name="Não confirmados"
+                              stackId="a"
+                              fill="#f59e0b"
+                            />
+                          </>
+                        ) : (
+                          <Bar
+                            dataKey="notPresent"
+                            name={absenceLabel}
+                            stackId="a"
+                            fill={eventFinished ? "#dc2626" : "#f59e0b"}
+                          />
+                        )}
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -310,13 +408,18 @@ export default function EventDashboardPage() {
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        ["total", "Total"],
-                        ["present", "Presentes"],
-                        ["notPresent", absenceLabel],
-                      ] as Array<[HeatMetric, string]>
-                    ).map(([value, label]) => (
+                    {([
+                      ["total", "Total"],
+                      ["present", "Presentes"],
+                      ...(data.aggregate
+                        ? ([
+                            ["absent", "Ausentes"],
+                            ["pending", "Não confirmados"],
+                          ] as Array<[HeatMetric, string]>)
+                        : ([["notPresent", absenceLabel]] as Array<
+                            [HeatMetric, string]
+                          >)),
+                    ] as Array<[HeatMetric, string]>).map(([value, label]) => (
                       <Button
                         key={value}
                         size="sm"
@@ -333,6 +436,7 @@ export default function EventDashboardPage() {
                     locations={data.locations}
                     metric={metric}
                     absenceLabel={absenceLabel}
+                    aggregate={data.aggregate}
                   />
                   <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
                     <span>{data.locations.length} regiões identificadas</span>
@@ -366,7 +470,16 @@ export default function EventDashboardPage() {
                         <th className="px-5 py-3">Bairro</th>
                         <th className="px-5 py-3 text-right">Total</th>
                         <th className="px-5 py-3 text-right">Presentes</th>
-                        <th className="px-5 py-3 text-right">{absenceLabel}</th>
+                        {data.aggregate ? (
+                          <>
+                            <th className="px-5 py-3 text-right">Ausentes</th>
+                            <th className="px-5 py-3 text-right">
+                              Não confirmados
+                            </th>
+                          </>
+                        ) : (
+                          <th className="px-5 py-3 text-right">{absenceLabel}</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -379,12 +492,28 @@ export default function EventDashboardPage() {
                           <td className="px-5 py-3">{location.neighborhood}</td>
                           <td className="px-5 py-3 text-right font-semibold">{location.total}</td>
                           <td className="px-5 py-3 text-right text-green-700">{location.present}</td>
-                          <td className="px-5 py-3 text-right">{location.notPresent}</td>
+                          {data.aggregate ? (
+                            <>
+                              <td className="px-5 py-3 text-right text-red-700">
+                                {location.absent}
+                              </td>
+                              <td className="px-5 py-3 text-right text-amber-700">
+                                {location.pending}
+                              </td>
+                            </>
+                          ) : (
+                            <td className="px-5 py-3 text-right">
+                              {location.notPresent}
+                            </td>
+                          )}
                         </tr>
                       ))}
                       {!neighborhoodData.length && (
                         <tr>
-                          <td colSpan={5} className="px-5 py-10 text-center text-gray-500">
+                          <td
+                            colSpan={data.aggregate ? 6 : 5}
+                            className="px-5 py-10 text-center text-gray-500"
+                          >
                             Nenhum participante possui cidade cadastrada.
                           </td>
                         </tr>
