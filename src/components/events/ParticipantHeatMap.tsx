@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const escapeHtml = (value: string) =>
   value.replace(
@@ -37,16 +37,25 @@ export function ParticipantHeatMap({
   absenceLabel: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [mapError, setMapError] = useState("");
 
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
     let map: import("leaflet").Map | null = null;
+    setMapError("");
 
-    void Promise.all([import("leaflet"), import("leaflet.heat")]).then(
-      ([leafletModule]) => {
-        if (cancelled || !containerRef.current) return;
+    void (async () => {
+      try {
+        const leafletModule = await import("leaflet");
         const L = leafletModule.default;
+
+        // leaflet.heat is distributed as a browser plugin and expects the
+        // Leaflet namespace to exist globally before its module is evaluated.
+        (window as typeof window & { L: typeof L }).L = L;
+        await import("leaflet.heat");
+
+        if (cancelled || !containerRef.current) return;
         const points = locations.filter(
           (item): item is HeatLocation & { latitude: number; longitude: number } =>
             item.latitude != null && item.longitude != null,
@@ -102,8 +111,12 @@ export function ParticipantHeatMap({
             { padding: [35, 35], maxZoom: 14 },
           );
         }
-      },
-    );
+      } catch (error) {
+        console.error("Erro ao carregar mapa de calor:", error);
+        if (!cancelled)
+          setMapError("Não foi possível carregar o mapa. Atualize a página e tente novamente.");
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -112,10 +125,17 @@ export function ParticipantHeatMap({
   }, [absenceLabel, locations, metric]);
 
   return (
-    <div
-      ref={containerRef}
-      className="h-[420px] w-full rounded-lg bg-slate-100"
-      aria-label="Mapa de calor de participantes por cidade e bairro"
-    />
+    <div className="relative">
+      <div
+        ref={containerRef}
+        className="h-[420px] w-full rounded-lg bg-slate-100"
+        aria-label="Mapa de calor de participantes por cidade e bairro"
+      />
+      {mapError && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-lg border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
+          {mapError}
+        </div>
+      )}
+    </div>
   );
 }
