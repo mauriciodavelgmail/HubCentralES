@@ -43,6 +43,9 @@ export async function updateOccurrence(id: string, changes: Partial<Occurrence>)
     .select()
     .single();
 
+  if (error?.code === 'PGRST116') {
+    throw new Error('Você não tem permissão para atualizar esta ocorrência.');
+  }
   if (error) throw error;
   return data as Occurrence;
 }
