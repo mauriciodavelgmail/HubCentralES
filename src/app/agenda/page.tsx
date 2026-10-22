@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Ban,
+  BarChart3,
   CalendarDays,
   Check,
   ChevronDown,
@@ -215,6 +217,7 @@ function validCnpj(value: string) {
 }
 
 export default function AgendaPage() {
+  const router = useRouter();
   const { user, profile } = useAuth();
   const canCreateEvent = [
     "administrador",
@@ -924,6 +927,29 @@ export default function AgendaPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex justify-end gap-1">
+                                {(["confirmada", "realizada"].includes(
+                                  agendaEvent.status,
+                                ) &&
+                                  ([
+                                    "administrador",
+                                    "administracao",
+                                    "recepcao",
+                                  ].includes(profile?.role ?? "") ||
+                                    agendaEvent.requester_id === profile?.id)) && (
+                                  <Button
+                                    title="Dashboard de participantes"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-purple-700"
+                                    onClick={() =>
+                                      router.push(
+                                        `/agenda/${agendaEvent.id}/dashboard`,
+                                      )
+                                    }
+                                  >
+                                    <BarChart3 size={17} />
+                                  </Button>
+                                )}
                                 {agendaEvent.status === "confirmada" && (
                                   <Button
                                     title="Vincular participantes"
