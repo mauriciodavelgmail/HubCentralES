@@ -33,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
       <div className="px-6 py-4">
         {/* Logo/Title for mobile */}
         <div className="lg:hidden mb-4">
@@ -88,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* Notifications dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-gray-200 bg-white shadow-xl">
                   <div className="p-4 border-b border-gray-200">
                     <h3 className="font-semibold text-gray-900">Notificações</h3>
                   </div>
