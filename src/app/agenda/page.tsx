@@ -84,11 +84,18 @@ interface AgendaEvent extends Event {
 
 interface CalendarEvent {
   id: string;
+  space_id: string;
   title: string;
   status: string;
   start_date: string;
   start_time: string;
   end_time: string;
+}
+
+interface AgendaSpace {
+  id: string;
+  name: string;
+  capacity: number;
 }
 
 const EVENT_TYPES = [
@@ -145,6 +152,17 @@ const EMPTY_FORM = {
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
+}
+
+function startOfWeek(value: Date) {
+  const date = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const day = date.getDay();
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+  return date;
+}
+
+function dateKey(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -226,10 +244,9 @@ export default function AgendaPage() {
   ].includes(profile?.role ?? "");
   const [events, setEvents] = useState<AgendaEvent[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-  const [spaces, setSpaces] = useState<Array<{ id: string; name: string }>>([]);
+  const [spaces, setSpaces] = useState<AgendaSpace[]>([]);
   const [view, setView] = useState<ViewMode>("table");
-  const [calendarSpace, setCalendarSpace] = useState("");
-  const [currentMonth, setCurrentMonth] = useState(() => new Date());
+  const [currentWeek, setCurrentWeek] = useState(() => startOfWeek(new Date()));
   const [loading, setLoading] = useState(true);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -276,12 +293,11 @@ export default function AgendaPage() {
     void loadEvents();
     void supabase
       .from("spaces")
-      .select("id,name")
+      .select("id,name,capacity")
       .eq("status", "disponivel")
       .order("name")
       .then(({ data }) => {
-        setSpaces(data ?? []);
-        setCalendarSpace((current) => current || data?.[0]?.id || "");
+        setSpaces((data ?? []) as AgendaSpace[]);
       });
   }, [loadEvents]);
 
@@ -296,22 +312,22 @@ export default function AgendaPage() {
   }, [events]);
 
   useEffect(() => {
-    if (view !== "calendar" || !calendarSpace) return;
-    const monthStart = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, "0")}-01`;
-    const monthEnd = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, "0")}-${String(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate()).padStart(2, "0")}`;
+    if (view !== "calendar") return;
+    const weekStart = startOfWeek(currentWeek);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
     setCalendarLoading(true);
     void supabase
-      .rpc("get_event_calendar", {
-        p_space_id: calendarSpace,
-        p_month_start: monthStart,
-        p_month_end: monthEnd,
+      .rpc("get_weekly_space_calendar", {
+        p_week_start: dateKey(weekStart),
+        p_week_end: dateKey(weekEnd),
       })
       .then(({ data, error: calendarError }) => {
         if (calendarError) setError(calendarError.message);
         else setCalendarEvents((data ?? []) as CalendarEvent[]);
         setCalendarLoading(false);
       });
-  }, [calendarSpace, currentMonth, view]);
+  }, [currentWeek, view]);
 
   const visibleEvents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -370,7 +386,11 @@ export default function AgendaPage() {
     </button>
   );
 
-  const openForm = (event?: AgendaEvent, selectedDate?: string) => {
+  const openForm = (
+    event?: AgendaEvent,
+    selectedDate?: string,
+    selectedSpaceId?: string,
+  ) => {
     setEditing(event ?? null);
     setThumbnail(null);
     setFacilitatorPhoto(null);
@@ -408,7 +428,7 @@ export default function AgendaPage() {
         : {
             ...EMPTY_FORM,
             start_date: selectedDate ?? "",
-            space_id: calendarSpace,
+            space_id: selectedSpaceId ?? "",
           },
     );
     setShowDialog(true);
@@ -459,6 +479,12 @@ export default function AgendaPage() {
       return "Preencha título, ambiente, data e horários.";
     if (form.start_time >= form.end_time)
       return "O horário final deve ser posterior ao inicial.";
+    const selectedSpace = spaces.find((space) => space.id === form.space_id);
+    const guestCount = Number(form.capacity);
+    if (!Number.isInteger(guestCount) || guestCount < 1)
+      return "Informe a quantidade de convidados do evento.";
+    if (selectedSpace && guestCount > selectedSpace.capacity)
+      return `A quantidade de convidados não pode ser superior à lotação do ambiente (${selectedSpace.capacity} pessoas).`;
     if (
       !form.facilitator_name.trim() ||
       !form.facilitator_minibio.trim() ||
@@ -708,16 +734,14 @@ export default function AgendaPage() {
       };
     });
 
-  const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const leadingDays = new Date(year, month, 1).getDay();
-  const calendarDays = Array.from(
-    { length: leadingDays + daysInMonth },
-    (_, index) => (index < leadingDays ? null : index - leadingDays + 1),
-  );
-  const dateKey = (day: number) =>
-    `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const weekStart = startOfWeek(currentWeek);
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(date.getDate() + index);
+    return date;
+  });
+  const weekEnd = weekDays[6];
+  const selectedSpace = spaces.find((space) => space.id === form.space_id);
 
   return (
     <ProtectedRoute
@@ -1064,131 +1088,134 @@ export default function AgendaPage() {
               )}
             </>
           ) : (
-            <>
-              <div className="max-w-md">
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Ambiente *
-                </label>
-                <select
-                  value={calendarSpace}
-                  onChange={(event) => setCalendarSpace(event.target.value)}
-                  className={inputClass}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Semana anterior"
+                  onClick={() => {
+                    const previous = new Date(weekStart);
+                    previous.setDate(previous.getDate() - 7);
+                    setCurrentWeek(previous);
+                  }}
                 >
-                  <option value="">Selecione o ambiente</option>
-                  {spaces.map((space) => (
-                    <option key={space.id} value={space.id}>
-                      {space.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {!calendarSpace ? (
-                <EmptyState
-                  title="Selecione um ambiente"
-                  description="O calendário apresenta a disponibilidade individual de cada ambiente."
-                />
-              ) : (
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setCurrentMonth(new Date(year, month - 1, 1))
-                      }
-                    >
-                      <ChevronLeft size={20} />
-                    </Button>
-                    <CardTitle className="capitalize">
-                      {currentMonth.toLocaleDateString("pt-BR", {
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setCurrentMonth(new Date(year, month + 1, 1))
-                      }
-                    >
-                      <ChevronRight size={20} />
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    {calendarLoading ? (
-                      <div className="flex justify-center py-20">
-                        <LoadingSpinner />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="-mx-2 overflow-x-auto px-2 pb-3 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
-                          <div className="min-w-[560px] sm:min-w-0">
-                            <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-500 sm:gap-2">
-                              {[
-                                "Dom",
-                                "Seg",
-                                "Ter",
-                                "Qua",
-                                "Qui",
-                                "Sex",
-                                "Sáb",
-                              ].map((day) => (
-                                <div key={day}>{day}</div>
-                              ))}
-                            </div>
-                            <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                              {calendarDays.map((day, index) => {
-                                if (!day) return <div key={`empty-${index}`} />;
-                                const date = dateKey(day);
-                                const dayEvents = calendarEvents.filter(
-                                  (item) => item.start_date === date,
-                                );
-                                const isPast =
-                                  date < new Date().toLocaleDateString("en-CA");
-                                const unavailable =
-                                  isPast || dayEvents.length > 0;
-                                return (
+                  <ChevronLeft size={20} />
+                </Button>
+                <div className="text-center">
+                  <CardTitle>Disponibilidade semanal</CardTitle>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {weekStart.toLocaleDateString("pt-BR")} a{" "}
+                    {weekEnd.toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Próxima semana"
+                  onClick={() => {
+                    const next = new Date(weekStart);
+                    next.setDate(next.getDate() + 7);
+                    setCurrentWeek(next);
+                  }}
+                >
+                  <ChevronRight size={20} />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {calendarLoading ? (
+                  <div className="flex justify-center py-20">
+                    <LoadingSpinner />
+                  </div>
+                ) : !spaces.length ? (
+                  <EmptyState
+                    title="Nenhum ambiente disponível"
+                    description="Cadastre ou ative um ambiente nas configurações."
+                  />
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="w-full min-w-[1050px] table-fixed text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="sticky left-0 z-10 w-52 border-r border-gray-200 bg-gray-50 px-3 py-3 text-left">
+                            Ambiente
+                          </th>
+                          {weekDays.map((day) => (
+                            <th key={dateKey(day)} className="px-2 py-3 text-center">
+                              <span className="block capitalize">
+                                {day.toLocaleDateString("pt-BR", {
+                                  weekday: "short",
+                                })}
+                              </span>
+                              <span className="text-xs font-normal text-gray-500">
+                                {day.toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                })}
+                              </span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {spaces.map((space) => (
+                          <tr key={space.id} className="border-t border-gray-200">
+                            <th className="sticky left-0 z-10 border-r border-gray-200 bg-white px-3 py-3 text-left align-top">
+                              <span className="block font-semibold text-gray-900">
+                                {space.name}
+                              </span>
+                              <span className="mt-1 block text-xs font-normal text-gray-500">
+                                Lotação: {space.capacity} pessoas
+                              </span>
+                            </th>
+                            {weekDays.map((day) => {
+                              const date = dateKey(day);
+                              const dayEvents = calendarEvents.filter(
+                                (item) =>
+                                  item.space_id === space.id &&
+                                  item.start_date === date,
+                              );
+                              const isPast = date < dateKey(new Date());
+                              const unavailable = isPast || dayEvents.length > 0;
+                              return (
+                                <td key={`${space.id}-${date}`} className="p-1 align-top">
                                   <button
-                                    key={date}
+                                    type="button"
                                     disabled={unavailable || !canCreateEvent}
-                                    onClick={() => openForm(undefined, date)}
-                                    className={`min-h-32 min-w-0 overflow-hidden rounded-lg border p-1.5 text-left sm:min-h-28 sm:p-2 ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : canCreateEvent ? "border-green-200 bg-green-50 hover:bg-green-100" : "cursor-default border-green-200 bg-green-50"}`}
+                                    onClick={() =>
+                                      openForm(undefined, date, space.id)
+                                    }
+                                    className={`min-h-24 w-full rounded-md border p-2 text-left transition-colors ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : canCreateEvent ? "border-green-200 bg-green-50 hover:border-green-400 hover:bg-green-100" : "cursor-default border-green-200 bg-green-50"}`}
                                   >
-                                    <strong>{day}</strong>
-                                    <p
-                                      className={`mt-1 text-[10px] font-medium sm:text-xs ${unavailable ? "text-red-700" : "text-green-700"}`}
+                                    <span
+                                      className={`text-xs font-semibold ${unavailable ? "text-red-700" : "text-green-700"}`}
                                     >
-                                      {unavailable
-                                        ? "Indisponível"
-                                        : "Disponível"}
-                                    </p>
-                                    {dayEvents.map((item) => (
-                                      <div
-                                        key={item.id}
-                                        className="mt-1 min-w-0 text-[10px] leading-tight text-red-800 sm:text-xs sm:leading-normal"
+                                      {unavailable ? "Indisponível" : "Disponível"}
+                                    </span>
+                                    {dayEvents.map((calendarEvent) => (
+                                      <span
+                                        key={calendarEvent.id}
+                                        className="mt-1 block text-[11px] leading-tight text-red-800"
                                       >
-                                        <p className="break-words font-semibold [overflow-wrap:anywhere] sm:truncate">
-                                          {item.title}
-                                        </p>
-                                        <p>
-                                          {item.start_time.slice(0, 5)}–
-                                          {item.end_time.slice(0, 5)}
-                                        </p>
-                                      </div>
+                                        <strong className="block truncate">
+                                          {calendarEvent.title}
+                                        </strong>
+                                        {calendarEvent.start_time.slice(0, 5)}–
+                                        {calendarEvent.end_time.slice(0, 5)}
+                                      </span>
                                     ))}
                                   </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -1295,7 +1322,7 @@ export default function AgendaPage() {
                         <option value="">Selecione</option>
                         {spaces.map((space) => (
                           <option key={space.id} value={space.id}>
-                            {space.name}
+                            {space.name} (até {space.capacity} pessoas)
                           </option>
                         ))}
                       </select>
@@ -1311,9 +1338,18 @@ export default function AgendaPage() {
                         }
                       />
                     </Field>
-                    <Field label="Capacidade">
+                    <Field
+                      label="Quantidade de convidados *"
+                      hint={
+                        selectedSpace
+                          ? `Lotação máxima do ambiente: ${selectedSpace.capacity} pessoas.`
+                          : "Selecione um ambiente para consultar a lotação máxima."
+                      }
+                    >
                       <input
+                        required
                         min="1"
+                        max={selectedSpace?.capacity}
                         type="number"
                         className={inputClass}
                         value={form.capacity}

@@ -109,7 +109,7 @@ export type Database = {
           start_date: string;
           start_time: string;
           end_time: string;
-          capacity: number | null;
+          capacity: number;
           attendance_list_created: boolean;
           approved_by: string | null;
           approved_at: string | null;

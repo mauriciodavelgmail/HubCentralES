@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase/auth';
 import { USER_ROLES } from '@/constants';
 import { KeyRound, Pencil, Plus, RefreshCw, ShieldAlert, UserCog } from 'lucide-react';
 import type { Database } from '@/lib/supabase/database.types';
+import { SpaceManager } from '@/components/spaces/SpaceManager';
 
 type Role = Database['public']['Tables']['profiles']['Row']['role'];
 type ManagedUser = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'user_id' | 'email' | 'full_name' | 'role' | 'is_active'>;
@@ -137,6 +138,7 @@ export default function ConfiguracoesPage() {
                   )}
                 </CardContent>
               </Card>
+              <SpaceManager />
             </>
           )}
         </div>
