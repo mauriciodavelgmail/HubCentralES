@@ -255,6 +255,8 @@ export default function AgendaPage() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [showDialog, setShowDialog] = useState(false);
+  const [saveErrorModal, setSaveErrorModal] = useState("");
+  const [capacityError, setCapacityError] = useState("");
   const [editing, setEditing] = useState<AgendaEvent | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
     key: "start_date",
@@ -396,6 +398,8 @@ export default function AgendaPage() {
     setFacilitatorPhoto(null);
     setError("");
     setNotice("");
+    setSaveErrorModal("");
+    setCapacityError("");
     setForm(
       event
         ? {
@@ -468,6 +472,19 @@ export default function AgendaPage() {
     }
   };
 
+  const validateGuestCount = (
+    value = form.capacity,
+    spaceId = form.space_id,
+  ) => {
+    const space = spaces.find((item) => item.id === spaceId);
+    const guestCount = Number(value);
+    if (!Number.isInteger(guestCount) || guestCount < 1)
+      return "Informe a quantidade de convidados do evento.";
+    if (space && guestCount > space.capacity)
+      return `A quantidade de convidados não pode ser superior à lotação do ambiente (${space.capacity} pessoas).`;
+    return "";
+  };
+
   const validateForm = () => {
     if (
       !form.title.trim() ||
@@ -479,15 +496,10 @@ export default function AgendaPage() {
       return "Preencha título, ambiente, data e horários.";
     if (form.start_time >= form.end_time)
       return "O horário final deve ser posterior ao inicial.";
-    const selectedSpace = spaces.find((space) => space.id === form.space_id);
-    const guestCount = Number(form.capacity);
-    if (!Number.isInteger(guestCount) || guestCount < 1)
-      return "Informe a quantidade de convidados do evento.";
-    if (selectedSpace && guestCount > selectedSpace.capacity)
-      return `A quantidade de convidados não pode ser superior à lotação do ambiente (${selectedSpace.capacity} pessoas).`;
+    const guestCountError = validateGuestCount();
+    if (guestCountError) return guestCountError;
     if (
       !form.facilitator_name.trim() ||
-      !form.facilitator_minibio.trim() ||
       !validCpf(form.facilitator_cpf) ||
       !form.facilitator_phone.trim()
     )
@@ -512,7 +524,8 @@ export default function AgendaPage() {
     event.preventDefault();
     const validation = validateForm();
     if (validation) {
-      setError(validation);
+      setCapacityError(validateGuestCount());
+      setSaveErrorModal(validation);
       return;
     }
     setSaving(true);
@@ -558,7 +571,7 @@ export default function AgendaPage() {
         audience_access: form.audience_access,
         activity_sector: form.activity_sector,
         facilitator_name: form.facilitator_name.trim(),
-        facilitator_minibio: form.facilitator_minibio.trim(),
+        facilitator_minibio: form.facilitator_minibio.trim() || null,
         facilitator_cnpj: onlyDigits(form.facilitator_cnpj) || null,
         facilitator_cpf: onlyDigits(form.facilitator_cpf),
         facilitator_phone: form.facilitator_phone.trim(),
@@ -620,7 +633,7 @@ export default function AgendaPage() {
         await deleteFile("images", uploadedPhotoPath).catch((cleanupError) =>
           console.error("Falha ao remover foto órfã:", cleanupError),
         );
-      setError(`Erro ao salvar evento: ${errorMessage(saveError)}`);
+      setSaveErrorModal(`Erro ao salvar evento: ${errorMessage(saveError)}`);
     } finally {
       setSaving(false);
     }
@@ -1227,7 +1240,7 @@ export default function AgendaPage() {
                   aprovação.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={submit} className="space-y-6">
+              <form onSubmit={submit} noValidate className="space-y-6">
                 <section className="space-y-4">
                   <h3 className="border-b pb-2 text-lg font-semibold">
                     Dados do evento
@@ -1312,9 +1325,10 @@ export default function AgendaPage() {
                         required
                         className={inputClass}
                         value={form.space_id}
-                        onChange={(event) =>
-                          setForm({ ...form, space_id: event.target.value })
-                        }
+                        onChange={(event) => {
+                          setForm({ ...form, space_id: event.target.value });
+                          setCapacityError("");
+                        }}
                       >
                         <option value="">Selecione</option>
                         {spaces.map((space) => (
@@ -1348,12 +1362,22 @@ export default function AgendaPage() {
                         min="1"
                         max={selectedSpace?.capacity}
                         type="number"
-                        className={inputClass}
+                        aria-invalid={Boolean(capacityError)}
+                        className={`${inputClass} ${capacityError ? "border-red-500 focus:ring-red-500" : ""}`}
                         value={form.capacity}
-                        onChange={(event) =>
-                          setForm({ ...form, capacity: event.target.value })
+                        onChange={(event) => {
+                          setForm({ ...form, capacity: event.target.value });
+                          setCapacityError("");
+                        }}
+                        onBlur={(event) =>
+                          setCapacityError(validateGuestCount(event.target.value))
                         }
                       />
+                      {capacityError && (
+                        <span className="mt-1 block text-xs font-medium text-red-600">
+                          {capacityError}
+                        </span>
+                      )}
                     </Field>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -1425,9 +1449,8 @@ export default function AgendaPage() {
                       />
                     </Field>
                   </div>
-                  <Field label="Minibio *">
+                  <Field label="Minibio (opcional)">
                     <textarea
-                      required
                       rows={3}
                       className={inputClass}
                       value={form.facilitator_minibio}
@@ -1603,6 +1626,29 @@ export default function AgendaPage() {
                   </Button>
                 </DialogFooter>
               </form>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={Boolean(saveErrorModal)}
+            onOpenChange={(open) => {
+              if (!open) setSaveErrorModal("");
+            }}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-red-100">
+                  <AlertCircle className="h-6 w-6 text-red-700" />
+                </div>
+                <DialogTitle>Não foi possível salvar a solicitação</DialogTitle>
+                <DialogDescription className="mt-2 leading-6 text-red-700">
+                  {saveErrorModal}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button type="button" onClick={() => setSaveErrorModal("")}>
+                  Corrigir dados
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
           <Dialog
