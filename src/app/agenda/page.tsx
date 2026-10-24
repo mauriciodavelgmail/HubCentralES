@@ -1172,7 +1172,7 @@ export default function AgendaPage() {
                   <ChevronRight size={20} />
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-2 sm:p-6">
                 {calendarLoading ? (
                   <div className="flex justify-center py-20">
                     <LoadingSpinner />
@@ -1183,21 +1183,24 @@ export default function AgendaPage() {
                     description="Cadastre ou ative um ambiente nas configurações."
                   />
                 ) : (
-                  <div className="overflow-x-auto rounded-lg border border-gray-200">
-                    <table className="w-full min-w-[1050px] table-fixed text-sm">
+                  <div className="overscroll-x-contain overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="w-full min-w-[700px] table-fixed text-xs sm:min-w-[1050px] sm:text-sm">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="sticky left-0 z-10 w-52 border-r border-gray-200 bg-gray-50 px-3 py-3 text-left">
+                          <th className="sticky left-0 z-10 w-24 border-r border-gray-200 bg-gray-50 px-1.5 py-2 text-left sm:w-52 sm:px-3 sm:py-3">
                             Ambiente
                           </th>
                           {weekDays.map((day) => (
-                            <th key={dateKey(day)} className="px-2 py-3 text-center">
+                            <th
+                              key={dateKey(day)}
+                              className="px-1 py-2 text-center sm:px-2 sm:py-3"
+                            >
                               <span className="block capitalize">
                                 {day.toLocaleDateString("pt-BR", {
                                   weekday: "short",
                                 })}
                               </span>
-                              <span className="text-xs font-normal text-gray-500">
+                              <span className="text-[10px] font-normal text-gray-500 sm:text-xs">
                                 {day.toLocaleDateString("pt-BR", {
                                   day: "2-digit",
                                   month: "2-digit",
@@ -1210,12 +1213,15 @@ export default function AgendaPage() {
                       <tbody>
                         {spaces.map((space) => (
                           <tr key={space.id} className="border-t border-gray-200">
-                            <th className="sticky left-0 z-10 border-r border-gray-200 bg-white px-3 py-3 text-left align-top">
-                              <span className="block font-semibold text-gray-900">
+                            <th className="sticky left-0 z-10 border-r border-gray-200 bg-white px-1.5 py-2 text-left align-top sm:px-3 sm:py-3">
+                              <span className="block break-words text-[11px] font-semibold leading-tight text-gray-900 sm:text-sm sm:leading-normal">
                                 {space.name}
                               </span>
-                              <span className="mt-1 block text-xs font-normal text-gray-500">
-                                Lotação: {space.capacity} pessoas
+                              <span className="mt-1 block text-[9px] font-normal text-gray-500 sm:text-xs">
+                                <span className="sm:hidden">{space.capacity} lugares</span>
+                                <span className="hidden sm:inline">
+                                  Lotação: {space.capacity} pessoas
+                                </span>
                               </span>
                             </th>
                             {weekDays.map((day) => {
@@ -1228,26 +1234,34 @@ export default function AgendaPage() {
                               const isPast = date < dateKey(new Date());
                               const unavailable = isPast || dayEvents.length > 0;
                               return (
-                                <td key={`${space.id}-${date}`} className="p-1 align-top">
+                                <td
+                                  key={`${space.id}-${date}`}
+                                  className="p-0.5 align-top sm:p-1"
+                                >
                                   <button
                                     type="button"
                                     disabled={unavailable || !canCreateEvent}
                                     onClick={() =>
                                       openForm(undefined, date, space.id)
                                     }
-                                    className={`min-h-24 w-full rounded-md border p-2 text-left transition-colors ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : canCreateEvent ? "border-green-200 bg-green-50 hover:border-green-400 hover:bg-green-100" : "cursor-default border-green-200 bg-green-50"}`}
+                                    className={`min-h-16 w-full rounded-md border p-1 text-left transition-colors sm:min-h-24 sm:p-2 ${unavailable ? "cursor-not-allowed border-red-200 bg-red-50" : canCreateEvent ? "border-green-200 bg-green-50 hover:border-green-400 hover:bg-green-100" : "cursor-default border-green-200 bg-green-50"}`}
                                   >
                                     <span
-                                      className={`text-xs font-semibold ${unavailable ? "text-red-700" : "text-green-700"}`}
+                                      className={`text-[10px] font-semibold sm:text-xs ${unavailable ? "text-red-700" : "text-green-700"}`}
                                     >
-                                      {unavailable ? "Indisponível" : "Disponível"}
+                                      <span className="sm:hidden">
+                                        {unavailable ? "Ocupado" : "Livre"}
+                                      </span>
+                                      <span className="hidden sm:inline">
+                                        {unavailable ? "Indisponível" : "Disponível"}
+                                      </span>
                                     </span>
                                     {dayEvents.map((calendarEvent) => (
                                       <span
                                         key={calendarEvent.id}
-                                        className="mt-1 block text-[11px] leading-tight text-red-800"
+                                        className="mt-1 block text-[9px] leading-tight text-red-800 sm:text-[11px]"
                                       >
-                                        <strong className="block truncate">
+                                        <strong className="hidden truncate sm:block">
                                           {calendarEvent.title}
                                         </strong>
                                         {calendarEvent.start_time.slice(0, 5)}–
