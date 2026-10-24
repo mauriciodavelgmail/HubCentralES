@@ -164,6 +164,31 @@ function startOfWeek(value: Date) {
 function dateKey(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
+
+function isoWeekValue(value: Date) {
+  const date = new Date(
+    Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()),
+  );
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(
+    ((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7,
+  );
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function weekStartFromValue(value: string) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const januaryFourth = new Date(year, 0, 4);
+  const januaryFourthDay = januaryFourth.getDay() || 7;
+  const firstMonday = new Date(year, 0, 4 - januaryFourthDay + 1);
+  firstMonday.setDate(firstMonday.getDate() + (week - 1) * 7);
+  return firstMonday;
+}
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -1118,6 +1143,21 @@ export default function AgendaPage() {
                     {weekStart.toLocaleDateString("pt-BR")} a{" "}
                     {weekEnd.toLocaleDateString("pt-BR")}
                   </p>
+                  <label className="mt-2 flex items-center justify-center gap-2 text-xs font-medium text-gray-600">
+                    Ir para semana
+                    <input
+                      type="week"
+                      aria-label="Selecionar semana do calendário"
+                      className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900"
+                      value={isoWeekValue(weekStart)}
+                      onChange={(event) => {
+                        const selectedWeek = weekStartFromValue(
+                          event.target.value,
+                        );
+                        if (selectedWeek) setCurrentWeek(selectedWeek);
+                      }}
+                    />
+                  </label>
                 </div>
                 <Button
                   variant="ghost"
