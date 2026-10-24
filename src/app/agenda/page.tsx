@@ -489,8 +489,7 @@ export default function AgendaPage() {
       !form.facilitator_name.trim() ||
       !form.facilitator_minibio.trim() ||
       !validCpf(form.facilitator_cpf) ||
-      !form.facilitator_phone.trim() ||
-      !form.facilitator_social.trim()
+      !form.facilitator_phone.trim()
     )
       return "Preencha os dados obrigatórios da pessoa facilitadora e informe um CPF válido.";
     if (form.facilitator_cnpj && !validCnpj(form.facilitator_cnpj))
@@ -499,8 +498,6 @@ export default function AgendaPage() {
       return "Informe o nome e contato do organizador responsável.";
     if (!editing?.thumbnail_url && !thumbnail)
       return "Anexe a Imagem do Evento (Thumbnail).";
-    if (!editing?.facilitator_photo_url && !facilitatorPhoto)
-      return "Anexe a foto da pessoa facilitadora.";
     const thumbnailError = validateImage(thumbnail, "Imagem do Evento");
     if (thumbnailError) return thumbnailError;
     const photoError = validateImage(
@@ -565,7 +562,7 @@ export default function AgendaPage() {
         facilitator_cnpj: onlyDigits(form.facilitator_cnpj) || null,
         facilitator_cpf: onlyDigits(form.facilitator_cpf),
         facilitator_phone: form.facilitator_phone.trim(),
-        facilitator_social: form.facilitator_social.trim(),
+        facilitator_social: form.facilitator_social.trim() || null,
         organizer_name: form.organizer_name.trim(),
         organizer_contact: form.organizer_contact.trim(),
         interpreter_needed: form.interpreter_needed === "sim",
@@ -1471,9 +1468,8 @@ export default function AgendaPage() {
                         }
                       />
                     </Field>
-                    <Field label="Perfil de rede social *">
+                    <Field label="Perfil de rede social (opcional)">
                       <input
-                        required
                         placeholder="@perfil ou URL"
                         className={inputClass}
                         value={form.facilitator_social}
@@ -1486,11 +1482,10 @@ export default function AgendaPage() {
                       />
                     </Field>
                     <Field
-                      label="Foto *"
+                      label="Foto (opcional)"
                       hint="Escolha uma imagem ou use a câmera do celular."
                     >
                       <input
-                        required={!editing?.facilitator_photo_url}
                         type="file"
                         accept="image/*"
                         capture="environment"
