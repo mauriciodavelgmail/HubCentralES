@@ -251,6 +251,7 @@ export default function ContratosPage() {
       <MainLayout
         title="Gestão de Contratos"
         subtitle="Administração de contratos e fornecedores"
+        onSearch={setSearch}
       >
         <div className="space-y-6">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">

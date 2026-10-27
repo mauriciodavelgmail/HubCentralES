@@ -457,6 +457,7 @@ export default function ComprasPage() {
         userRole={profile?.role || "visitante"}
         title="Compras"
         subtitle="Pedidos avulsos e aquisições de insumos com controle de estoque"
+        onSearch={setSearch}
       >
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">

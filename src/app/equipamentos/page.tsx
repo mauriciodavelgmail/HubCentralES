@@ -440,6 +440,7 @@ export default function EquipamentosPage() {
         userRole={profile?.role || "visitante"}
         title="Equipamentos e Patrimônio"
         subtitle="Gerencie todos os equipamentos e seus dados de manutenção"
+        onSearch={setSearchQuery}
       >
         <div className="space-y-6">
           {/* Alert */}

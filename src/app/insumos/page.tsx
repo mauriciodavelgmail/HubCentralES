@@ -817,6 +817,7 @@ export default function InsumosPage() {
         userRole={profile?.role || "visitante"}
         title="Insumos e Estoque"
         subtitle="Gerencie todos os insumos e materiais"
+        onSearch={setSearchQuery}
       >
         <div className="space-y-6">
           {/* Alert */}

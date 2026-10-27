@@ -794,6 +794,7 @@ export default function AgendaPage() {
         userRole={profile?.role || "visitante"}
         title="Agenda de Eventos"
         subtitle="Solicitações, aprovações e disponibilidade dos ambientes"
+        onSearch={setSearch}
       >
         <div className="space-y-6">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">

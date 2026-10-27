@@ -115,7 +115,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         <Header
           title={title}
           subtitle={subtitle}
-          showSearch={showSearch}
+          showSearch={showSearch && Boolean(onSearch)}
           onSearch={onSearch}
           notificationsCount={
             notificationsCount ||

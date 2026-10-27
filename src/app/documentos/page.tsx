@@ -264,6 +264,7 @@ export default function DocumentosPage() {
         userRole={profile?.role || "visitante"}
         title="Documentos"
         subtitle="Gerencie todos os documentos do HUB ES+"
+        onSearch={setSearchQuery}
       >
         <div className="space-y-6">
           {/* Header */}
