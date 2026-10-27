@@ -1002,7 +1002,7 @@ export default function AgendaPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex justify-end gap-1">
-                                {(["confirmada", "realizada"].includes(
+                                {["confirmada", "realizada"].includes(
                                   agendaEvent.status,
                                 ) &&
                                   ([
@@ -1010,21 +1010,22 @@ export default function AgendaPage() {
                                     "administracao",
                                     "recepcao",
                                   ].includes(profile?.role ?? "") ||
-                                    agendaEvent.requester_id === profile?.id)) && (
-                                  <Button
-                                    title="Dashboard de participantes"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-purple-700"
-                                    onClick={() =>
-                                      router.push(
-                                        `/agenda/${agendaEvent.id}/dashboard`,
-                                      )
-                                    }
-                                  >
-                                    <BarChart3 size={17} />
-                                  </Button>
-                                )}
+                                    agendaEvent.requester_id ===
+                                      profile?.id) && (
+                                    <Button
+                                      title="Dashboard de participantes"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-purple-700"
+                                      onClick={() =>
+                                        router.push(
+                                          `/agenda/${agendaEvent.id}/dashboard`,
+                                        )
+                                      }
+                                    >
+                                      <BarChart3 size={17} />
+                                    </Button>
+                                  )}
                                 {agendaEvent.status === "confirmada" && (
                                   <Button
                                     title="Vincular participantes"
@@ -1212,13 +1213,18 @@ export default function AgendaPage() {
                       </thead>
                       <tbody>
                         {spaces.map((space) => (
-                          <tr key={space.id} className="border-t border-gray-200">
+                          <tr
+                            key={space.id}
+                            className="border-t border-gray-200"
+                          >
                             <th className="sticky left-0 z-10 border-r border-gray-200 bg-white px-1.5 py-2 text-left align-top sm:px-3 sm:py-3">
                               <span className="block break-words text-[11px] font-semibold leading-tight text-gray-900 sm:text-sm sm:leading-normal">
                                 {space.name}
                               </span>
                               <span className="mt-1 block text-[9px] font-normal text-gray-500 sm:text-xs">
-                                <span className="sm:hidden">{space.capacity} lugares</span>
+                                <span className="sm:hidden">
+                                  {space.capacity} lugares
+                                </span>
                                 <span className="hidden sm:inline">
                                   Lotação: {space.capacity} pessoas
                                 </span>
@@ -1232,7 +1238,8 @@ export default function AgendaPage() {
                                   item.start_date === date,
                               );
                               const isPast = date < dateKey(new Date());
-                              const unavailable = isPast || dayEvents.length > 0;
+                              const unavailable =
+                                isPast || dayEvents.length > 0;
                               return (
                                 <td
                                   key={`${space.id}-${date}`}
@@ -1253,7 +1260,9 @@ export default function AgendaPage() {
                                         {unavailable ? "Ocupado" : "Livre"}
                                       </span>
                                       <span className="hidden sm:inline">
-                                        {unavailable ? "Indisponível" : "Disponível"}
+                                        {unavailable
+                                          ? "Indisponível"
+                                          : "Disponível"}
                                       </span>
                                     </span>
                                     {dayEvents.map((calendarEvent) => (
@@ -1336,19 +1345,14 @@ export default function AgendaPage() {
                       }
                     />
                   </Field>
-                  <Field
-                    label="Imagem do Evento (Thumbnail) *"
-                    hint="Envie JPG, PNG, WEBP ou GIF de até 10 MB."
-                  >
-                    <input
-                      type="file"
-                      accept="image/*"
-                      required={!editing?.thumbnail_url}
-                      onChange={(event) =>
-                        setThumbnail(event.target.files?.[0] ?? null)
-                      }
-                    />
-                  </Field>
+                  <ImageUploadField
+                    title="Imagem do card do evento *"
+                    description="Esta imagem será a capa exibida no card e na divulgação do evento."
+                    fileName={thumbnail?.name}
+                    hasCurrentFile={Boolean(editing?.thumbnail_url)}
+                    required={!editing?.thumbnail_url}
+                    onChange={setThumbnail}
+                  />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <RadioGroup
                       label="Acesso ao evento *"
@@ -1424,7 +1428,9 @@ export default function AgendaPage() {
                           setCapacityError("");
                         }}
                         onBlur={(event) =>
-                          setCapacityError(validateGuestCount(event.target.value))
+                          setCapacityError(
+                            validateGuestCount(event.target.value),
+                          )
                         }
                       />
                       {capacityError && (
@@ -1558,19 +1564,14 @@ export default function AgendaPage() {
                         }
                       />
                     </Field>
-                    <Field
-                      label="Foto (opcional)"
-                      hint="Escolha uma imagem ou use a câmera do celular."
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(event) =>
-                          setFacilitatorPhoto(event.target.files?.[0] ?? null)
-                        }
-                      />
-                    </Field>
+                    <ImageUploadField
+                      title="Foto da pessoa facilitadora (opcional)"
+                      description="Use uma foto de perfil para identificar quem conduzirá o evento."
+                      fileName={facilitatorPhoto?.name}
+                      hasCurrentFile={Boolean(editing?.facilitator_photo_url)}
+                      capture
+                      onChange={setFacilitatorPhoto}
+                    />
                     <Field label="Nome do organizador responsável *">
                       <input
                         required
@@ -1834,6 +1835,62 @@ function Field({
       </span>
       {hint && <span className="mb-2 block text-xs text-gray-500">{hint}</span>}
       {children}
+    </label>
+  );
+}
+
+function ImageUploadField({
+  title,
+  description,
+  fileName,
+  hasCurrentFile = false,
+  required = false,
+  capture = false,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  fileName?: string;
+  hasCurrentFile?: boolean;
+  required?: boolean;
+  capture?: boolean;
+  onChange: (file: File | null) => void;
+}) {
+  const selectionText = fileName
+    ? `Selecionado: ${fileName}`
+    : hasCurrentFile
+      ? "Imagem atual mantida — toque para substituir"
+      : "Toque para escolher uma imagem";
+
+  return (
+    <label className="group block cursor-pointer rounded-2xl border-2 border-dashed border-blue-300 bg-gradient-to-br from-blue-50 to-white p-4 transition hover:border-blue-500 hover:shadow-md focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-200">
+      <span className="flex items-start gap-3">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition group-hover:scale-105">
+          <ImageIcon size={24} aria-hidden="true" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-gray-900">
+            {title}
+          </span>
+          <span className="mt-1 block text-xs leading-5 text-gray-600">
+            {description}
+          </span>
+          <span className="mt-2 block truncate text-sm font-medium text-blue-700">
+            {selectionText}
+          </span>
+          <span className="mt-1 block text-xs text-gray-500">
+            JPG, PNG, WEBP ou GIF · máximo de 10 MB
+          </span>
+        </span>
+      </span>
+      <input
+        type="file"
+        accept="image/*"
+        capture={capture ? "environment" : undefined}
+        required={required}
+        className="sr-only"
+        onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+      />
     </label>
   );
 }

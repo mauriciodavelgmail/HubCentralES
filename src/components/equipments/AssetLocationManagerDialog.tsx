@@ -42,6 +42,7 @@ export function AssetLocationManagerDialog({
   const [floorId, setFloorId] = useState("");
   const [status, setStatus] = useState("ativo");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const reset = (kind: "location" | "floor" = tab) => {
     setTab(kind);
     setEditingId(null);
@@ -64,6 +65,7 @@ export function AssetLocationManagerDialog({
   };
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
+    setSaving(true);
     setError("");
     const table = tab === "floor" ? "asset_floors" : "asset_locations";
     const payload =
@@ -76,10 +78,12 @@ export function AssetLocationManagerDialog({
     const { error: saveError } = await query;
     if (saveError) {
       setError(saveError.message);
+      setSaving(false);
       return;
     }
     await onSaved();
     reset(tab);
+    setSaving(false);
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,7 +166,7 @@ export function AssetLocationManagerDialog({
             <Button type="button" variant="outline" onClick={() => reset(tab)}>
               Limpar
             </Button>
-            <Button type="submit">
+            <Button type="submit" loading={saving}>
               <Plus size={15} /> {editingId ? "Salvar" : "Cadastrar"}
             </Button>
           </div>

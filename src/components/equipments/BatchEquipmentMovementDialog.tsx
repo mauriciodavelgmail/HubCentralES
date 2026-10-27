@@ -109,7 +109,7 @@ export function BatchEquipmentMovementDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" loading={busy}>
               {busy ? "Movimentando..." : "Confirmar movimentação"}
             </Button>
           </DialogFooter>

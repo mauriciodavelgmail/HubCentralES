@@ -88,6 +88,7 @@ export default function EquipamentosPage() {
   const { user, profile } = useAuth();
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
@@ -246,6 +247,7 @@ export default function EquipamentosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       const safeCode = formData.patrimonial_code.replace(
         /[^a-zA-Z0-9_-]/g,
@@ -298,6 +300,8 @@ export default function EquipamentosPage() {
       setError("");
     } catch (err: any) {
       setError("Erro ao salvar equipamento: " + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1213,6 +1217,11 @@ export default function EquipamentosPage() {
                   />
                 </div>
 
+                {error && (
+                  <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    {error}
+                  </p>
+                )}
                 <DialogFooter>
                   <Button
                     type="button"
@@ -1223,6 +1232,7 @@ export default function EquipamentosPage() {
                   </Button>
                   <Button
                     type="submit"
+                    loading={saving}
                     className="bg-blue-600 text-white hover:bg-blue-700"
                   >
                     {editingId ? "Atualizar" : "Criar"} Equipamento

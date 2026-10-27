@@ -192,7 +192,7 @@ export function EquipmentMovementDialog({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" loading={busy}>
                 {busy ? "Registrando..." : "Confirmar movimentação"}
               </Button>
             </DialogFooter>

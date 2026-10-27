@@ -518,7 +518,7 @@ function InventoryExecution({
                 >
                   Voltar
                 </Button>
-                <Button type="submit" disabled={busy}>
+                <Button type="submit" loading={busy}>
                   {busy ? "Validando..." : "Confirmar conclusão"}
                 </Button>
               </div>
@@ -547,6 +547,7 @@ export function InventoryWorkflowDialog({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [executing, setExecuting] = useState<Request | null>(null);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     deadline: "",
@@ -597,6 +598,7 @@ export function InventoryWorkflowDialog({
   }, [requests]);
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
+    setCreating(true);
     setError("");
     const { error: createError } = await supabase.rpc(
       "create_inventory_request",
@@ -617,6 +619,7 @@ export function InventoryWorkflowDialog({
       });
       await load();
     }
+    setCreating(false);
   };
   return (
     <>
@@ -710,7 +713,11 @@ export function InventoryWorkflowDialog({
                 </select>
               </label>
               <div className="flex items-end">
-                <Button type="submit" className="w-full py-3">
+                <Button
+                  type="submit"
+                  loading={creating}
+                  className="w-full py-3"
+                >
                   Gerar solicitação
                 </Button>
               </div>

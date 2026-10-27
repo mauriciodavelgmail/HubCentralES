@@ -110,6 +110,7 @@ export default function OcorrenciasPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [requisitionOccurrence, setRequisitionOccurrence] =
     useState<Occurrence | null>(null);
   const [linkedSupplyOccurrence, setLinkedSupplyOccurrence] =
@@ -157,6 +158,7 @@ export default function OcorrenciasPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
       if (!editingId && !profile?.id) {
         throw new Error(
@@ -203,6 +205,9 @@ export default function OcorrenciasPage() {
       setSelectedFile(null);
     } catch (err: any) {
       setError("Erro ao salvar ocorrência: " + err.message);
+    } finally {
+      setUploading(false);
+      setSaving(false);
     }
   };
 
@@ -218,7 +223,8 @@ export default function OcorrenciasPage() {
           return;
         }
 
-        const message = err instanceof Error ? err.message : "Erro desconhecido";
+        const message =
+          err instanceof Error ? err.message : "Erro desconhecido";
         setError("Erro ao deletar: " + message);
       }
     }
@@ -613,6 +619,11 @@ export default function OcorrenciasPage() {
                 )}
               </div>
 
+              {error && (
+                <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  {error}
+                </p>
+              )}
               <DialogFooter>
                 <Button
                   type="button"
@@ -623,6 +634,7 @@ export default function OcorrenciasPage() {
                 </Button>
                 <Button
                   type="submit"
+                  loading={saving}
                   className="bg-blue-600 text-white hover:bg-blue-700"
                 >
                   {editingId ? "Atualizar" : "Criar"} Ocorrência

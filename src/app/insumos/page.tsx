@@ -112,6 +112,9 @@ export default function InsumosPage() {
   const { user, profile } = useAuth();
   const [supplies, setSupplies] = useState<ManagedSupply[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingSupply, setSavingSupply] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [savingCategory, setSavingCategory] = useState(false);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
@@ -295,6 +298,7 @@ export default function InsumosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSavingSupply(true);
     try {
       let photoUpload: Awaited<ReturnType<typeof uploadImage>> | null = null;
       if (itemPhoto) {
@@ -334,6 +338,8 @@ export default function InsumosPage() {
       await processSupplyAlerts();
     } catch (err: any) {
       setError("Erro ao salvar insumo: " + err.message);
+    } finally {
+      setSavingSupply(false);
     }
   };
 
@@ -421,6 +427,7 @@ export default function InsumosPage() {
 
   const saveLocation = async (event: React.FormEvent) => {
     event.preventDefault();
+    setSavingLocation(true);
     const query = editingLocationId
       ? supabase
           .from("supply_storage_locations")
@@ -430,6 +437,7 @@ export default function InsumosPage() {
           .from("supply_storage_locations")
           .insert({ ...locationForm, created_by: user?.id });
     const { data, error: locationError } = await query.select().single();
+    setSavingLocation(false);
     if (locationError) {
       setError(locationError.message);
       return;
@@ -478,6 +486,7 @@ export default function InsumosPage() {
       setError("Informe um nome válido para a categoria.");
       return;
     }
+    setSavingCategory(true);
     const query = editingCategoryId
       ? supabase
           .from("supply_categories")
@@ -494,6 +503,7 @@ export default function InsumosPage() {
           created_by: user?.id,
         });
     const { data, error: categoryError } = await query.select().single();
+    setSavingCategory(false);
     if (categoryError) {
       setError(
         categoryError.code === "23505"
@@ -1426,6 +1436,11 @@ export default function InsumosPage() {
                   />
                 </div>
 
+                {error && (
+                  <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    {error}
+                  </p>
+                )}
                 <DialogFooter>
                   <Button
                     type="button"
@@ -1436,6 +1451,7 @@ export default function InsumosPage() {
                   </Button>
                   <Button
                     type="submit"
+                    loading={savingSupply}
                     className="bg-blue-600 text-white hover:bg-blue-700"
                   >
                     {editingId ? "Atualizar" : "Criar"} Insumo
@@ -1662,7 +1678,7 @@ export default function InsumosPage() {
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" loading={savingLocation}>
                     {editingLocationId
                       ? "Salvar alterações"
                       : "Cadastrar local"}
@@ -1754,7 +1770,7 @@ export default function InsumosPage() {
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" loading={savingCategory}>
                     {editingCategoryId
                       ? "Salvar alterações"
                       : "Cadastrar categoria"}

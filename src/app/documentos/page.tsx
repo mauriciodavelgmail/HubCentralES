@@ -1,44 +1,88 @@
-'use client';
+"use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { MainLayout } from '@/components/layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, LoadingSpinner, EmptyState, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui';
-import { ProtectedRoute } from '@/lib/auth/protected-route';
-import { useAuth } from '@/lib/auth/context';
-import { getDocuments, createDocument, updateDocument, deleteDocument, Document } from '@/lib/supabase/documents';
-import { Search, Plus, Download, Trash2, Edit, AlertCircle, CheckCircle, Clock, Upload, ChevronUp, ChevronDown } from 'lucide-react';
-import { uploadDocument } from '@/lib/supabase/storage';
+import React, { useEffect, useMemo, useState } from "react";
+import { MainLayout } from "@/components/layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Badge,
+  Button,
+  LoadingSpinner,
+  EmptyState,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui";
+import { ProtectedRoute } from "@/lib/auth/protected-route";
+import { useAuth } from "@/lib/auth/context";
+import {
+  getDocuments,
+  createDocument,
+  updateDocument,
+  deleteDocument,
+  Document,
+} from "@/lib/supabase/documents";
+import {
+  Search,
+  Plus,
+  Download,
+  Trash2,
+  Edit,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Upload,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
+import { uploadDocument } from "@/lib/supabase/storage";
 
 export default function DocumentosPage() {
   const { user, profile } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [sort, setSort] = useState<{
-    key: 'title' | 'control_id' | 'category' | 'status' | 'validity_date';
-    direction: 'asc' | 'desc';
-  }>({ key: 'title', direction: 'asc' });
+    key: "title" | "control_id" | "category" | "status" | "validity_date";
+    direction: "asc" | "desc";
+  }>({ key: "title", direction: "asc" });
 
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: 'contratos',
-    status: 'ativo',
-    file_url: '',
-    file_type: 'application/pdf',
-    validity_date: '',
-    control_id: '',
+    title: "",
+    description: "",
+    category: "contratos",
+    status: "ativo",
+    file_url: "",
+    file_type: "application/pdf",
+    validity_date: "",
+    control_id: "",
     tags: [] as string[],
   });
 
-  const CATEGORIES = ['contratos', 'editais', 'pops', 'atas', 'normas', 'relatorios', 'comunicacao_institucional', 'documentos_fiscais', 'patrimonio'];
-  const STATUSES = ['ativo', 'vencendo', 'vencido', 'arquivado'];
+  const CATEGORIES = [
+    "contratos",
+    "editais",
+    "pops",
+    "atas",
+    "normas",
+    "relatorios",
+    "comunicacao_institucional",
+    "documentos_fiscais",
+    "patrimonio",
+  ];
+  const STATUSES = ["ativo", "vencendo", "vencido", "arquivado"];
 
   // Load documents
   useEffect(() => {
@@ -50,9 +94,9 @@ export default function DocumentosPage() {
       setLoading(true);
       const data = await getDocuments();
       setDocuments(data);
-      setError('');
+      setError("");
     } catch (err: any) {
-      setError('Erro ao carregar documentos: ' + err.message);
+      setError("Erro ao carregar documentos: " + err.message);
       console.error(err);
     } finally {
       setLoading(false);
@@ -64,26 +108,26 @@ export default function DocumentosPage() {
       setEditingId(doc.id);
       setFormData({
         title: doc.title,
-        description: doc.description || '',
+        description: doc.description || "",
         category: doc.category,
         status: doc.status,
         file_url: doc.file_url,
         file_type: doc.file_type,
-        validity_date: doc.validity_date || '',
+        validity_date: doc.validity_date || "",
         control_id: doc.control_id,
         tags: doc.tags || [],
       });
     } else {
       setEditingId(null);
       setFormData({
-        title: '',
-        description: '',
-        category: 'contratos',
-        status: 'ativo',
-        file_url: '',
-        file_type: 'application/pdf',
-        validity_date: '',
-        control_id: '',
+        title: "",
+        description: "",
+        category: "contratos",
+        status: "ativo",
+        file_url: "",
+        file_type: "application/pdf",
+        validity_date: "",
+        control_id: "",
         tags: [],
       });
     }
@@ -92,20 +136,19 @@ export default function DocumentosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUploading(true);
     try {
       let finalFileUrl = formData.file_url;
 
       if (selectedFile) {
-        setUploading(true);
-        const uploadResult = await uploadDocument(selectedFile, 'documents');
+        const uploadResult = await uploadDocument(selectedFile, "documents");
         finalFileUrl = uploadResult.url;
-        setUploading(false);
       }
 
       const submitData = {
         ...formData,
         file_url: finalFileUrl,
-        status: formData.status as Document['status'],
+        status: formData.status as Document["status"],
       };
 
       if (editingId) {
@@ -116,55 +159,85 @@ export default function DocumentosPage() {
       await loadDocuments();
       setShowDialog(false);
       setSelectedFile(null);
-      setError('');
+      setError("");
     } catch (err: any) {
-      setError('Erro ao salvar documento: ' + err.message);
+      setError("Erro ao salvar documento: " + err.message);
+    } finally {
       setUploading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja deletar este documento?')) return;
+    if (!confirm("Tem certeza que deseja deletar este documento?")) return;
     try {
       await deleteDocument(id);
       await loadDocuments();
-      setError('');
+      setError("");
     } catch (err: any) {
-      setError('Erro ao deletar documento: ' + err.message);
+      setError("Erro ao deletar documento: " + err.message);
     }
   };
 
-  const filteredDocuments = useMemo(() => documents.filter(doc => {
-    const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.control_id?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !selectedCategory || doc.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  }).sort((first, second) => {
-    const firstValue = first[sort.key] ?? '';
-    const secondValue = second[sort.key] ?? '';
-    const result = String(firstValue).localeCompare(String(secondValue), 'pt-BR', { numeric: true });
-    return sort.direction === 'asc' ? result : -result;
-  }), [documents, searchQuery, selectedCategory, sort]);
+  const filteredDocuments = useMemo(
+    () =>
+      documents
+        .filter((doc) => {
+          const matchesSearch =
+            doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            doc.control_id?.toLowerCase().includes(searchQuery.toLowerCase());
+          const matchesCategory =
+            !selectedCategory || doc.category === selectedCategory;
+          return matchesSearch && matchesCategory;
+        })
+        .sort((first, second) => {
+          const firstValue = first[sort.key] ?? "";
+          const secondValue = second[sort.key] ?? "";
+          const result = String(firstValue).localeCompare(
+            String(secondValue),
+            "pt-BR",
+            { numeric: true },
+          );
+          return sort.direction === "asc" ? result : -result;
+        }),
+    [documents, searchQuery, selectedCategory, sort],
+  );
 
-  const changeSort = (key: typeof sort.key) => setSort(current => ({
-    key,
-    direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
-  }));
+  const changeSort = (key: typeof sort.key) =>
+    setSort((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
 
-  const SortHeader = ({ field, children }: { field: typeof sort.key; children: React.ReactNode }) => (
-    <button type="button" onClick={() => changeSort(field)} className="flex items-center gap-1 font-semibold text-gray-700">
+  const SortHeader = ({
+    field,
+    children,
+  }: {
+    field: typeof sort.key;
+    children: React.ReactNode;
+  }) => (
+    <button
+      type="button"
+      onClick={() => changeSort(field)}
+      className="flex items-center gap-1 font-semibold text-gray-700"
+    >
       {children}
-      {sort.key === field && (sort.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+      {sort.key === field &&
+        (sort.direction === "asc" ? (
+          <ChevronUp size={14} />
+        ) : (
+          <ChevronDown size={14} />
+        ))}
     </button>
   );
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'ativo':
+      case "ativo":
         return <CheckCircle size={16} className="text-green-600" />;
-      case 'vencendo':
+      case "vencendo":
         return <AlertCircle size={16} className="text-yellow-600" />;
-      case 'vencido':
+      case "vencido":
         return <AlertCircle size={16} className="text-red-600" />;
       default:
         return <Clock size={16} className="text-gray-600" />;
@@ -173,22 +246,22 @@ export default function DocumentosPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ativo':
-        return 'success';
-      case 'vencendo':
-        return 'warning';
-      case 'vencido':
-        return 'danger';
+      case "ativo":
+        return "success";
+      case "vencendo":
+        return "warning";
+      case "vencido":
+        return "danger";
       default:
-        return 'info';
+        return "info";
     }
   };
 
   return (
-    <ProtectedRoute allowedRoles={['administrador', 'administracao']}>
+    <ProtectedRoute allowedRoles={["administrador", "administracao"]}>
       <MainLayout
-        userName={profile?.full_name || 'Usuário'}
-        userRole={profile?.role || 'visitante'}
+        userName={profile?.full_name || "Usuário"}
+        userRole={profile?.role || "visitante"}
         title="Documentos"
         subtitle="Gerencie todos os documentos do HUB ES+"
       >
@@ -197,7 +270,10 @@ export default function DocumentosPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2 flex-1">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={20}
+                />
                 <input
                   type="text"
                   placeholder="Pesquisar por título ou ID de controle..."
@@ -212,8 +288,10 @@ export default function DocumentosPage() {
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todas Categorias</option>
-                {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
                 ))}
               </select>
             </div>
@@ -243,7 +321,14 @@ export default function DocumentosPage() {
             <EmptyState
               title="Nenhum documento encontrado"
               description="Comece criando seu primeiro documento"
-              action={<Button onClick={() => handleOpenDialog()} className="bg-blue-600 text-white">Criar Documento</Button>}
+              action={
+                <Button
+                  onClick={() => handleOpenDialog()}
+                  className="bg-blue-600 text-white"
+                >
+                  Criar Documento
+                </Button>
+              }
             />
           ) : (
             <Card>
@@ -255,25 +340,50 @@ export default function DocumentosPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left"><SortHeader field="title">Título</SortHeader></th>
-                        <th className="px-4 py-3 text-left"><SortHeader field="control_id">ID Controle</SortHeader></th>
-                        <th className="px-4 py-3 text-left"><SortHeader field="category">Categoria</SortHeader></th>
-                        <th className="px-4 py-3 text-left"><SortHeader field="status">Status</SortHeader></th>
-                        <th className="px-4 py-3 text-left"><SortHeader field="validity_date">Validade</SortHeader></th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Ações</th>
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="title">Título</SortHeader>
+                        </th>
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="control_id">
+                            ID Controle
+                          </SortHeader>
+                        </th>
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="category">Categoria</SortHeader>
+                        </th>
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="status">Status</SortHeader>
+                        </th>
+                        <th className="px-4 py-3 text-left">
+                          <SortHeader field="validity_date">
+                            Validade
+                          </SortHeader>
+                        </th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                          Ações
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredDocuments.map(doc => (
-                        <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      {filteredDocuments.map((doc) => (
+                        <tr
+                          key={doc.id}
+                          className="border-b border-gray-100 hover:bg-gray-50"
+                        >
                           <td className="px-4 py-3">
                             <div>
-                              <p className="font-medium text-gray-900">{doc.title}</p>
-                              <p className="text-xs text-gray-500">{doc.description}</p>
+                              <p className="font-medium text-gray-900">
+                                {doc.title}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {doc.description}
+                              </p>
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <code className="bg-gray-100 px-2 py-1 rounded text-xs">{doc.control_id}</code>
+                            <code className="bg-gray-100 px-2 py-1 rounded text-xs">
+                              {doc.control_id}
+                            </code>
                           </td>
                           <td className="px-4 py-3">
                             <Badge variant="info">{doc.category}</Badge>
@@ -281,18 +391,28 @@ export default function DocumentosPage() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               {getStatusIcon(doc.status)}
-                              <Badge variant={getStatusColor(doc.status) as any}>{doc.status}</Badge>
+                              <Badge
+                                variant={getStatusColor(doc.status) as any}
+                              >
+                                {doc.status}
+                              </Badge>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-gray-600">
-                            {doc.validity_date ? new Date(doc.validity_date).toLocaleDateString('pt-BR') : '—'}
+                            {doc.validity_date
+                              ? new Date(doc.validity_date).toLocaleDateString(
+                                  "pt-BR",
+                                )
+                              : "—"}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => window.open(doc.file_url, '_blank')}
+                                onClick={() =>
+                                  window.open(doc.file_url, "_blank")
+                                }
                                 className="text-blue-600 hover:bg-blue-50"
                               >
                                 <Download size={16} />
@@ -328,62 +448,94 @@ export default function DocumentosPage() {
           <Dialog open={showDialog} onOpenChange={setShowDialog}>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>{editingId ? 'Editar Documento' : 'Novo Documento'}</DialogTitle>
+                <DialogTitle>
+                  {editingId ? "Editar Documento" : "Novo Documento"}
+                </DialogTitle>
                 <DialogDescription>
-                  {editingId ? 'Atualize os dados do documento' : 'Preencha os dados do novo documento'}
+                  {editingId
+                    ? "Atualize os dados do documento"
+                    : "Preencha os dados do novo documento"}
                 </DialogDescription>
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Title */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Título *
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
                 {/* Control ID */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ID de Controle *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ID de Controle *
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.control_id}
-                    onChange={(e) => setFormData({ ...formData, control_id: e.target.value.toUpperCase() })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        control_id: e.target.value.toUpperCase(),
+                      })
+                    }
                     placeholder="Ex: CT2024001"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Apenas letras e números, sem espaços</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Apenas letras e números, sem espaços
+                  </p>
                 </div>
 
                 {/* Category & Status */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Categoria *
+                    </label>
                     <select
                       value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, category: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      {CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
+                      {CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Status *
+                    </label>
                     <select
                       value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          status: e.target.value as any,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      {STATUSES.map(status => (
-                        <option key={status} value={status}>{status}</option>
+                      {STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -391,10 +543,14 @@ export default function DocumentosPage() {
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Descrição
+                  </label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -402,18 +558,24 @@ export default function DocumentosPage() {
 
                 {/* File Upload Input */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Arquivo {!editingId && '*'}</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Arquivo {!editingId && "*"}
+                  </label>
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition">
                         <Upload size={18} className="text-gray-400" />
                         <span className="text-sm text-gray-600">
-                          {selectedFile ? selectedFile.name : 'Selecionar arquivo'}
+                          {selectedFile
+                            ? selectedFile.name
+                            : "Selecionar arquivo"}
                         </span>
                         <input
                           type="file"
                           hidden
-                          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                          onChange={(e) =>
+                            setSelectedFile(e.target.files?.[0] || null)
+                          }
                           accept=".pdf,.doc,.docx,.xls,.xlsx"
                           disabled={uploading}
                         />
@@ -432,27 +594,58 @@ export default function DocumentosPage() {
                     )}
                   </div>
                   {formData.file_url && !selectedFile && (
-                    <p className="text-xs text-gray-500 mt-2">✓ Arquivo: <a href={formData.file_url} target="_blank" rel="noopener" className="text-blue-600 hover:underline">visualizar</a></p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      ✓ Arquivo:{" "}
+                      <a
+                        href={formData.file_url}
+                        target="_blank"
+                        rel="noopener"
+                        className="text-blue-600 hover:underline"
+                      >
+                        visualizar
+                      </a>
+                    </p>
                   )}
                 </div>
 
                 {/* Validity Date */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Validade</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Data de Validade
+                  </label>
                   <input
                     type="date"
                     value={formData.validity_date}
-                    onChange={(e) => setFormData({ ...formData, validity_date: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        validity_date: e.target.value,
+                      })
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
+                {error && (
+                  <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    {error}
+                  </p>
+                )}
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowDialog(false)} disabled={uploading}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowDialog(false)}
+                    disabled={uploading}
+                  >
                     Cancelar
                   </Button>
-                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={uploading}>
-                    {uploading ? 'Enviando...' : (editingId ? 'Atualizar' : 'Criar')} Documento
+                  <Button
+                    type="submit"
+                    className="bg-blue-600 text-white hover:bg-blue-700"
+                    loading={uploading}
+                  >
+                    {editingId ? "Atualizar" : "Criar"} Documento
                   </Button>
                 </DialogFooter>
               </form>
