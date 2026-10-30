@@ -66,6 +66,15 @@ export async function signIn(email: string, password: string) {
   });
 
   if (error) throw error;
+
+  const profile = await getUserProfile(data.user.id);
+  if (!profile) {
+    await supabase.auth.signOut();
+    throw new Error(
+      "Seu usuário foi autenticado, mas o perfil de acesso não foi encontrado. Contate o administrador.",
+    );
+  }
+
   return data;
 }
 
@@ -106,10 +115,9 @@ export async function getUserProfile(
     query = query.eq("user_id", user.id);
   }
 
-  const { data, error } = await query.single();
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") return null; // No rows found
     throw error;
   }
 
