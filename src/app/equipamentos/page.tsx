@@ -25,6 +25,7 @@ import { uploadDocument, uploadImage } from "@/lib/supabase/storage";
 import { EquipmentImportDialog } from "@/components/equipments/EquipmentImportDialog";
 import { EquipmentMovementDialog } from "@/components/equipments/EquipmentMovementDialog";
 import { EquipmentRetirementDialog } from "@/components/equipments/EquipmentRetirementDialog";
+import { EquipmentMaintenanceDialog } from "@/components/equipments/EquipmentMaintenanceDialog";
 import { EquipmentHistoryDialog } from "@/components/equipments/EquipmentHistoryDialog";
 import {
   AssetLocationManagerDialog,
@@ -84,7 +85,6 @@ const STATUSES = [
   "indisponivel",
   "baixado",
 ];
-const MAINTENANCE_STATUS = ["ok", "atencao", "alerta"];
 
 export default function EquipamentosPage() {
   const { user, profile } = useAuth();
@@ -102,6 +102,8 @@ export default function EquipamentosPage() {
     null,
   );
   const [retirementEquipment, setRetirementEquipment] =
+    useState<Equipment | null>(null);
+  const [maintenanceEquipment, setMaintenanceEquipment] =
     useState<Equipment | null>(null);
   const [historyEquipment, setHistoryEquipment] = useState<Equipment | null>(
     null,
@@ -124,6 +126,9 @@ export default function EquipamentosPage() {
   const canManage = ["administrador", "administracao"].includes(
     profile?.role || "",
   );
+  const canMaintain = ["administrador", "administracao", "manutencao"].includes(
+    profile?.role || "",
+  );
 
   const [formData, setFormData] = useState({
     name: "",
@@ -132,7 +137,7 @@ export default function EquipamentosPage() {
     manufacturer: "",
     location: "",
     status: "disponivel",
-    maintenance_status: "ok",
+    maintenance_status: "alerta",
     purchase_date: "",
     warranty_expiration_date: "",
     last_maintenance_date: "",
@@ -227,7 +232,7 @@ export default function EquipamentosPage() {
         manufacturer: "",
         location: "",
         status: "disponivel",
-        maintenance_status: "ok",
+        maintenance_status: "alerta",
         purchase_date: "",
         warranty_expiration_date: "",
         last_maintenance_date: "",
@@ -295,6 +300,7 @@ export default function EquipamentosPage() {
       if (editingId) {
         const editablePayload = { ...payload } as Partial<Equipment>;
         delete editablePayload.status;
+        delete editablePayload.maintenance_status;
         delete editablePayload.asset_location_id;
         delete editablePayload.location;
         delete editablePayload.floor;
@@ -305,6 +311,7 @@ export default function EquipamentosPage() {
         await createEquipment({
           ...payload,
           status: "disponivel",
+          maintenance_status: "alerta",
           created_by: user?.id,
         } as any);
       }
@@ -703,9 +710,26 @@ export default function EquipamentosPage() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
                               {getStatusIcon(eq.status)}
-                              <Badge variant={getStatusColor(eq.status) as any}>
-                                {eq.status}
-                              </Badge>
+                              {eq.status === "em_manutencao" ? (
+                                <button
+                                  type="button"
+                                  title="Abrir manutenção em andamento"
+                                  onClick={() => setMaintenanceEquipment(eq)}
+                                  className="rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <Badge
+                                    variant={getStatusColor(eq.status) as any}
+                                  >
+                                    {eq.status}
+                                  </Badge>
+                                </button>
+                              ) : (
+                                <Badge
+                                  variant={getStatusColor(eq.status) as any}
+                                >
+                                  {eq.status}
+                                </Badge>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -743,6 +767,21 @@ export default function EquipamentosPage() {
                               >
                                 <History size={16} />
                               </Button>
+                              {canMaintain && eq.status !== "baixado" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title={
+                                    eq.status === "em_manutencao"
+                                      ? "Dar baixa na manutenção"
+                                      : "Abrir manutenção"
+                                  }
+                                  onClick={() => setMaintenanceEquipment(eq)}
+                                  className="text-amber-700 hover:bg-amber-50"
+                                >
+                                  <Wrench size={16} />
+                                </Button>
+                              )}
                               {canManage && eq.status !== "baixado" && (
                                 <Button
                                   variant="ghost"
@@ -1124,22 +1163,14 @@ export default function EquipamentosPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Manutenção
                     </label>
-                    <select
-                      value={formData.maintenance_status}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          maintenance_status: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {MAINTENANCE_STATUS.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      value={editingId ? formData.maintenance_status : "alerta"}
+                      disabled
+                      className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-gray-600"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Atualizado automaticamente pelo fluxo de manutenção.
+                    </p>
                   </div>
                 </div>
 
@@ -1301,6 +1332,12 @@ export default function EquipamentosPage() {
           <EquipmentRetirementDialog
             equipment={retirementEquipment}
             onClose={() => setRetirementEquipment(null)}
+            onCompleted={loadEquipments}
+          />
+          <EquipmentMaintenanceDialog
+            key={maintenanceEquipment?.id ?? "maintenance-closed"}
+            equipment={maintenanceEquipment}
+            onClose={() => setMaintenanceEquipment(null)}
             onCompleted={loadEquipments}
           />
           <EquipmentHistoryDialog

@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/event-checklists",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/equipment-maintenance",
+      "schedule": "0 10 * * *"
     }
   ]
 }
