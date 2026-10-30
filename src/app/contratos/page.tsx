@@ -3,12 +3,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  ChevronDown,
+  ChevronUp,
   Edit2,
   Eye,
   FileText,
+  LayoutGrid,
   Plus,
   RefreshCw,
   Search,
+  Table2,
   Upload,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -57,6 +61,15 @@ const contractSchema = z
   });
 
 type ContractForm = z.infer<typeof contractSchema>;
+type ContractStatus = ContractForm["status"];
+type ContractSortKey =
+  | "contract_number"
+  | "supplier"
+  | "subject"
+  | "start_date"
+  | "end_date"
+  | "value"
+  | "status";
 interface Contract extends Omit<ContractForm, "value"> {
   id: string;
   value: number | null;
@@ -86,11 +99,25 @@ const STATUS_VARIANTS: Record<
   encerrado: "secondary",
   rascunho: "info",
 };
+const STATUS_LABELS: Record<ContractStatus, string> = {
+  rascunho: "Rascunho",
+  ativo: "Ativo",
+  vencendo: "Vencendo",
+  vencido: "Vencido",
+  encerrado: "Encerrado",
+  cancelado: "Cancelado",
+};
 
 export default function ContratosPage() {
   const { user } = useAuth();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ContractStatus | "">("");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [sort, setSort] = useState<{
+    key: ContractSortKey;
+    direction: "asc" | "desc";
+  }>({ key: "contract_number", direction: "asc" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,14 +154,52 @@ export default function ContratosPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return query
-      ? contracts.filter((item) =>
+    const result = contracts.filter(
+      (item) =>
+        (!statusFilter || item.status === statusFilter) &&
+        (!query ||
           `${item.contract_number} ${item.supplier} ${item.subject}`
             .toLowerCase()
-            .includes(query),
-        )
-      : contracts;
-  }, [contracts, search]);
+            .includes(query)),
+    );
+
+    return result.sort((first, second) => {
+      const firstValue = first[sort.key] ?? "";
+      const secondValue = second[sort.key] ?? "";
+      const comparison =
+        typeof firstValue === "number" && typeof secondValue === "number"
+          ? firstValue - secondValue
+          : String(firstValue).localeCompare(String(secondValue), "pt-BR", {
+              numeric: true,
+              sensitivity: "base",
+            });
+      return sort.direction === "asc" ? comparison : -comparison;
+    });
+  }, [contracts, search, sort, statusFilter]);
+
+  const changeSort = (key: ContractSortKey) => {
+    setSort((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const sortButton = (label: string, key: ContractSortKey) => (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 whitespace-nowrap font-semibold text-gray-700 hover:text-blue-700"
+      onClick={() => changeSort(key)}
+    >
+      {label}
+      {sort.key === key &&
+        (sort.direction === "asc" ? (
+          <ChevronUp size={15} aria-hidden="true" />
+        ) : (
+          <ChevronDown size={15} aria-hidden="true" />
+        ))}
+    </button>
+  );
 
   const openCreate = () => {
     setEditing(null);
@@ -267,18 +332,68 @@ export default function ContratosPage() {
               Novo contrato
             </Button>
           </div>
-          <div className="relative max-w-xl">
-            <Search
-              className="absolute left-3 top-2.5 text-gray-400"
-              size={20}
-            />
-            <Input
-              aria-label="Buscar contratos"
-              placeholder="Buscar por número, fornecedor ou objeto"
-              className="pl-10"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+              <div className="relative w-full max-w-xl">
+                <Search
+                  className="absolute left-3 top-2.5 text-gray-400"
+                  size={20}
+                />
+                <Input
+                  aria-label="Buscar contratos"
+                  placeholder="Buscar por número, fornecedor ou objeto"
+                  className="pl-10"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              <select
+                aria-label="Filtrar contratos por status"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as ContractStatus | "")
+                }
+              >
+                <option value="">Todos os status</option>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div
+              className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1"
+              aria-label="Formato de exibição"
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  viewMode === "cards"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+                aria-pressed={viewMode === "cards"}
+              >
+                <LayoutGrid size={16} />
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  viewMode === "table"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+                aria-pressed={viewMode === "table"}
+              >
+                <Table2 size={16} />
+                Tabela
+              </button>
+            </div>
           </div>
           {error && (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -302,7 +417,7 @@ export default function ContratosPage() {
               <EmptyState
                 icon={<FileText size={42} />}
                 title="Nenhum contrato encontrado"
-                description="Cadastre o primeiro contrato ou ajuste a busca."
+                description="Cadastre o primeiro contrato ou ajuste a busca e os filtros."
                 action={
                   <Button onClick={openCreate}>
                     <Plus size={18} />
@@ -311,7 +426,7 @@ export default function ContratosPage() {
                 }
               />
             </Card>
-          ) : (
+          ) : viewMode === "cards" ? (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               {filtered.map((contract) => (
                 <Card key={contract.id}>
@@ -394,6 +509,116 @@ export default function ContratosPage() {
                 </Card>
               ))}
             </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1050px] text-left text-sm">
+                    <thead className="border-b border-gray-200 bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3">
+                          {sortButton("Número", "contract_number")}
+                        </th>
+                        <th className="px-4 py-3">
+                          {sortButton("Fornecedor", "supplier")}
+                        </th>
+                        <th className="px-4 py-3">
+                          {sortButton("Objeto", "subject")}
+                        </th>
+                        <th className="px-4 py-3">
+                          {sortButton("Início", "start_date")}
+                        </th>
+                        <th className="px-4 py-3">
+                          {sortButton("Fim", "end_date")}
+                        </th>
+                        <th className="px-4 py-3">
+                          {sortButton("Valor", "value")}
+                        </th>
+                        <th className="px-4 py-3">
+                          {sortButton("Status", "status")}
+                        </th>
+                        <th className="px-4 py-3 text-right font-semibold text-gray-700">
+                          Ações
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filtered.map((contract) => (
+                        <tr key={contract.id} className="hover:bg-gray-50">
+                          <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
+                            {contract.contract_number}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {contract.supplier}
+                          </td>
+                          <td className="max-w-xs px-4 py-3 text-gray-700">
+                            <span className="line-clamp-2">
+                              {contract.subject}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                            {new Date(
+                              `${contract.start_date}T12:00:00`,
+                            ).toLocaleDateString("pt-BR")}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                            {new Date(
+                              `${contract.end_date}T12:00:00`,
+                            ).toLocaleDateString("pt-BR")}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-gray-700">
+                            {contract.value == null
+                              ? "—"
+                              : contract.value.toLocaleString("pt-BR", {
+                                  style: "currency",
+                                  currency: "BRL",
+                                })}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge
+                              variant={
+                                STATUS_VARIANTS[contract.status] ?? "secondary"
+                              }
+                            >
+                              {STATUS_LABELS[contract.status] ??
+                                contract.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end gap-2">
+                              {contract.document?.file_url && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label={`Visualizar PDF do contrato ${contract.contract_number}`}
+                                  onClick={() =>
+                                    window.open(
+                                      contract.document?.file_url,
+                                      "_blank",
+                                      "noopener,noreferrer",
+                                    )
+                                  }
+                                >
+                                  <Eye size={15} />
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label={`Editar contrato ${contract.contract_number}`}
+                                onClick={() => openEdit(contract)}
+                              >
+                                <Edit2 size={15} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 
