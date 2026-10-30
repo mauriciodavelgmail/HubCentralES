@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -19,17 +19,35 @@ export interface UserProfile {
   user_id: string;
   email: string;
   full_name: string;
-  role: 'administrador' | 'administracao' | 'recepcao' | 'manutencao' | 'limpeza' | 'visitante';
+  role:
+    | "administrador"
+    | "administracao"
+    | "recepcao"
+    | "manutencao"
+    | "limpeza"
+    | "visitante";
   department_id: string;
   is_active: boolean;
 }
 
 // Sign Up
-export async function signUp(email: string, password: string, fullName: string) {
+export async function signUp(
+  email: string,
+  password: string,
+  fullName: string,
+) {
+  const siteUrl =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_SITE_URL;
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
+      emailRedirectTo: siteUrl
+        ? `${siteUrl.replace(/\/$/, "")}/login`
+        : undefined,
       data: {
         full_name: fullName,
       },
@@ -68,28 +86,30 @@ export async function getSession() {
 export async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error) {
-    if (error.name === 'AuthSessionMissingError') return null;
+    if (error.name === "AuthSessionMissingError") return null;
     throw error;
   }
   return data.user;
 }
 
 // Get User Profile
-export async function getUserProfile(userId?: string): Promise<UserProfile | null> {
-  let query = supabase.from('profiles').select('*');
+export async function getUserProfile(
+  userId?: string,
+): Promise<UserProfile | null> {
+  let query = supabase.from("profiles").select("*");
 
   if (userId) {
-    query = query.eq('user_id', userId);
+    query = query.eq("user_id", userId);
   } else {
     const user = await getCurrentUser();
     if (!user) return null;
-    query = query.eq('user_id', user.id);
+    query = query.eq("user_id", user.id);
   }
 
   const { data, error } = await query.single();
 
   if (error) {
-    if (error.code === 'PGRST116') return null; // No rows found
+    if (error.code === "PGRST116") return null; // No rows found
     throw error;
   }
 
@@ -98,7 +118,7 @@ export async function getUserProfile(userId?: string): Promise<UserProfile | nul
 
 // Listen to Auth State Changes
 export function onAuthStateChange(
-  callback: (user: AuthUser | null, profile: UserProfile | null) => void
+  callback: (user: AuthUser | null, profile: UserProfile | null) => void,
 ) {
   return supabase.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
@@ -106,10 +126,10 @@ export function onAuthStateChange(
       callback(
         {
           id: session.user.id,
-          email: session.user.email || '',
+          email: session.user.email || "",
           user_metadata: session.user.user_metadata,
         },
-        profile
+        profile,
       );
     } else {
       callback(null, null);
