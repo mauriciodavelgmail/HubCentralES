@@ -37,6 +37,7 @@ import {
   AssetLabelsDialog,
 } from "@/components/equipments/AssetLabelsDialog";
 import { BatchEquipmentMovementDialog } from "@/components/equipments/BatchEquipmentMovementDialog";
+import { BatchEquipmentRetirementDialog } from "@/components/equipments/BatchEquipmentRetirementDialog";
 import { supabase } from "@/lib/supabase/auth";
 import {
   getEquipments,
@@ -113,6 +114,7 @@ export default function EquipamentosPage() {
   const [showInventory, setShowInventory] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBatchMovement, setShowBatchMovement] = useState(false);
+  const [showBatchRetirement, setShowBatchRetirement] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
   const [imagePreview, setImagePreview] = useState<Equipment | null>(null);
   const [sortConfig, setSortConfig] = useState<{
@@ -354,6 +356,9 @@ export default function EquipamentosPage() {
   const selectedEquipments = equipments.filter((equipment) =>
     selectedIds.has(equipment.id),
   );
+  const selectedRetirementIds = selectedEquipments
+    .filter((equipment) => equipment.status !== "baixado")
+    .map((equipment) => equipment.id);
   const labelEquipments = selectedEquipments.length
     ? selectedEquipments
     : sortedEquipments;
@@ -514,6 +519,15 @@ export default function EquipamentosPage() {
                   className="border-orange-300 text-orange-700"
                 >
                   <MoveRight size={18} /> Movimentar {selectedIds.size}
+                </Button>
+              )}
+              {canManage && selectedRetirementIds.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBatchRetirement(true)}
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  <ArchiveX size={18} /> Baixar {selectedRetirementIds.length}
                 </Button>
               )}
               <Button variant="outline" onClick={() => setShowInventory(true)}>
@@ -1299,6 +1313,15 @@ export default function EquipamentosPage() {
             equipmentIds={[...selectedIds]}
             locations={assetLocations}
             onMoved={async () => {
+              setSelectedIds(new Set());
+              await loadEquipments();
+            }}
+          />
+          <BatchEquipmentRetirementDialog
+            open={showBatchRetirement}
+            onOpenChange={setShowBatchRetirement}
+            equipmentIds={selectedRetirementIds}
+            onRetired={async () => {
               setSelectedIds(new Set());
               await loadEquipments();
             }}
