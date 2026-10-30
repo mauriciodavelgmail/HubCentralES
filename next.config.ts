@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "esmaiscriativo.es.gov.br",
+        pathname: "/hubesmais/wp-content/uploads/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
