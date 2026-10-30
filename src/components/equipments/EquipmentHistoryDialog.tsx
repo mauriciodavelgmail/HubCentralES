@@ -20,6 +20,8 @@ type Entry = {
   action: string;
   old_location: string | null;
   new_location: string | null;
+  old_status: string | null;
+  new_status: string | null;
   description: string | null;
   changed_by: string;
   created_at: string;
@@ -47,7 +49,7 @@ export function EquipmentHistoryDialog({
       const { data, error: historyError } = await supabase
         .from("equipment_history")
         .select(
-          "id,action,old_location,new_location,description,changed_by,created_at,invoice_number,invoice_url,image_url",
+          "id,action,old_status,new_status,old_location,new_location,description,changed_by,created_at,invoice_number,invoice_url,image_url",
         )
         .eq("equipment_id", equipment.id)
         .order("created_at", { ascending: false });
@@ -126,6 +128,19 @@ export function EquipmentHistoryDialog({
                       <strong>{entry.new_location}</strong>
                     </div>
                   )}
+                  {entry.old_status &&
+                    entry.new_status &&
+                    entry.old_status !== entry.new_status && (
+                      <div className="mt-3 flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                        <span className="capitalize">
+                          {entry.old_status.replace(/_/g, " ")}
+                        </span>
+                        <ArrowRight size={14} />
+                        <strong className="capitalize">
+                          {entry.new_status.replace(/_/g, " ")}
+                        </strong>
+                      </div>
+                    )}
                   {entry.description && (
                     <p className="mt-3 text-sm text-gray-700">
                       {entry.description}

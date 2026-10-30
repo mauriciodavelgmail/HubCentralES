@@ -24,6 +24,7 @@ import { useAuth } from "@/lib/auth/context";
 import { uploadDocument, uploadImage } from "@/lib/supabase/storage";
 import { EquipmentImportDialog } from "@/components/equipments/EquipmentImportDialog";
 import { EquipmentMovementDialog } from "@/components/equipments/EquipmentMovementDialog";
+import { EquipmentRetirementDialog } from "@/components/equipments/EquipmentRetirementDialog";
 import { EquipmentHistoryDialog } from "@/components/equipments/EquipmentHistoryDialog";
 import {
   AssetLocationManagerDialog,
@@ -41,7 +42,6 @@ import {
   getEquipments,
   createEquipment,
   updateEquipment,
-  deleteEquipment,
   Equipment,
   getEquipmentsByStatus,
   getEquipmentsByLocation,
@@ -49,7 +49,6 @@ import {
 import {
   Search,
   Plus,
-  Trash2,
   Edit,
   AlertCircle,
   CheckCircle,
@@ -63,6 +62,8 @@ import {
   ArrowUpDown,
   Image as ImageIcon,
   Barcode,
+  ArchiveX,
+  RotateCcw,
 } from "lucide-react";
 
 const LOCATIONS = [
@@ -99,6 +100,8 @@ export default function EquipamentosPage() {
   const [movementEquipment, setMovementEquipment] = useState<Equipment | null>(
     null,
   );
+  const [retirementEquipment, setRetirementEquipment] =
+    useState<Equipment | null>(null);
   const [historyEquipment, setHistoryEquipment] = useState<Equipment | null>(
     null,
   );
@@ -288,12 +291,20 @@ export default function EquipamentosPage() {
           : {}),
       };
       if (editingId) {
-        await updateEquipment(editingId, {
-          ...payload,
-          status: formData.status as Equipment["status"],
-        });
+        const editablePayload = { ...payload } as Partial<Equipment>;
+        delete editablePayload.status;
+        delete editablePayload.asset_location_id;
+        delete editablePayload.location;
+        delete editablePayload.floor;
+        delete editablePayload.is_low;
+        delete editablePayload.low_date;
+        await updateEquipment(editingId, editablePayload);
       } else {
-        await createEquipment({ ...payload, created_by: user?.id } as any);
+        await createEquipment({
+          ...payload,
+          status: "disponivel",
+          created_by: user?.id,
+        } as any);
       }
       await loadEquipments();
       setShowDialog(false);
@@ -302,17 +313,6 @@ export default function EquipamentosPage() {
       setError("Erro ao salvar equipamento: " + err.message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja deletar este equipamento?")) return;
-    try {
-      await deleteEquipment(id);
-      await loadEquipments();
-      setError("");
-    } catch (err: any) {
-      setError("Erro ao deletar equipamento: " + err.message);
     }
   };
 
@@ -729,7 +729,7 @@ export default function EquipamentosPage() {
                               >
                                 <History size={16} />
                               </Button>
-                              {canManage && (
+                              {canManage && eq.status !== "baixado" && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -744,20 +744,33 @@ export default function EquipamentosPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
+                                  title={
+                                    eq.status === "baixado"
+                                      ? "Cancelar baixa"
+                                      : "Baixar patrimônio"
+                                  }
+                                  onClick={() => setRetirementEquipment(eq)}
+                                  className={
+                                    eq.status === "baixado"
+                                      ? "text-blue-600 hover:bg-blue-50"
+                                      : "text-red-600 hover:bg-red-50"
+                                  }
+                                >
+                                  {eq.status === "baixado" ? (
+                                    <RotateCcw size={16} />
+                                  ) : (
+                                    <ArchiveX size={16} />
+                                  )}
+                                </Button>
+                              )}
+                              {canManage && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => handleOpenDialog(eq)}
                                   className="text-gray-600 hover:bg-gray-100"
                                 >
                                   <Edit size={16} />
-                                </Button>
-                              )}
-                              {profile?.role === "administrador" && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDelete(eq.id)}
-                                  className="text-red-600 hover:bg-red-50"
-                                >
-                                  <Trash2 size={16} />
                                 </Button>
                               )}
                             </div>
@@ -841,44 +854,46 @@ export default function EquipamentosPage() {
                 <AssetCodePreview value={formData.patrimonial_code} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <label>
-                    <span className="mb-1 flex items-center justify-between text-sm font-medium">
-                      Pavimento *
-                      <button
-                        type="button"
-                        className="text-xs text-blue-600"
-                        onClick={() => setShowLocationManager(true)}
+                  {!editingId && (
+                    <label>
+                      <span className="mb-1 flex items-center justify-between text-sm font-medium">
+                        Pavimento *
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600"
+                          onClick={() => setShowLocationManager(true)}
+                        >
+                          Cadastrar
+                        </button>
+                      </span>
+                      <select
+                        required
+                        className="w-full rounded-lg border px-3 py-2"
+                        value={formData.floor}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            floor: e.target.value,
+                            location: "",
+                            asset_location_id: "",
+                          })
+                        }
                       >
-                        Cadastrar
-                      </button>
-                    </span>
-                    <select
-                      required
-                      className="w-full rounded-lg border px-3 py-2"
-                      value={formData.floor}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          floor: e.target.value,
-                          location: "",
-                          asset_location_id: "",
-                        })
-                      }
-                    >
-                      <option value="">Selecione</option>
-                      {floors
-                        .filter(
-                          (floor) =>
-                            floor.status === "ativo" ||
-                            floor.name === formData.floor,
-                        )
-                        .map((floor) => (
-                          <option key={floor.id} value={floor.name}>
-                            {floor.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                        <option value="">Selecione</option>
+                        {floors
+                          .filter(
+                            (floor) =>
+                              floor.status === "ativo" ||
+                              floor.name === formData.floor,
+                          )
+                          .map((floor) => (
+                            <option key={floor.id} value={floor.name}>
+                              {floor.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  )}
                   <label>
                     <span className="mb-1 block text-sm font-medium">
                       Quantidade *
@@ -1011,73 +1026,85 @@ export default function EquipamentosPage() {
                 </div>
 
                 {/* Location, Status, Maintenance */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="mb-1 flex items-center justify-between text-sm font-medium text-gray-700">
-                      Local *
-                      <button
-                        type="button"
-                        className="text-xs text-blue-600"
-                        onClick={() => setShowLocationManager(true)}
+                {editingId && (
+                  <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                    Pavimento e local são alterados exclusivamente pela opção
+                    “Movimentar patrimônio”.
+                  </p>
+                )}
+                <div
+                  className={`grid gap-4 ${editingId ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}
+                >
+                  {!editingId && (
+                    <div>
+                      <label className="mb-1 flex items-center justify-between text-sm font-medium text-gray-700">
+                        Local *
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600"
+                          onClick={() => setShowLocationManager(true)}
+                        >
+                          Cadastrar
+                        </button>
+                      </label>
+                      <select
+                        required
+                        value={formData.asset_location_id}
+                        onChange={(e) => {
+                          const selected = assetLocations.find(
+                            (location) => location.id === e.target.value,
+                          );
+                          const selectedFloor = floors.find(
+                            (floor) => floor.id === selected?.floor_id,
+                          );
+                          setFormData({
+                            ...formData,
+                            asset_location_id: e.target.value,
+                            location: selected?.name ?? "",
+                            floor: selectedFloor?.name ?? formData.floor,
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        Cadastrar
-                      </button>
-                    </label>
-                    <select
-                      required
-                      value={formData.asset_location_id}
-                      onChange={(e) => {
-                        const selected = assetLocations.find(
-                          (location) => location.id === e.target.value,
-                        );
-                        const selectedFloor = floors.find(
-                          (floor) => floor.id === selected?.floor_id,
-                        );
-                        setFormData({
-                          ...formData,
-                          asset_location_id: e.target.value,
-                          location: selected?.name ?? "",
-                          floor: selectedFloor?.name ?? formData.floor,
-                        });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Selecione</option>
-                      {assetLocations
-                        .filter((location) => {
-                          const floor = floors.find(
-                            (item) => item.id === location.floor_id,
-                          );
-                          return (
-                            (location.status === "ativo" ||
-                              location.id === formData.asset_location_id) &&
-                            (!formData.floor || floor?.name === formData.floor)
-                          );
-                        })
-                        .map((location) => (
-                          <option key={location.id} value={location.id}>
-                            {location.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+                        <option value="">Selecione</option>
+                        {assetLocations
+                          .filter((location) => {
+                            const floor = floors.find(
+                              (item) => item.id === location.floor_id,
+                            );
+                            return (
+                              (location.status === "ativo" ||
+                                location.id === formData.asset_location_id) &&
+                              (!formData.floor ||
+                                floor?.name === formData.floor)
+                            );
+                          })
+                          .map((location) => (
+                            <option key={location.id} value={location.id}>
+                              {location.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Status *
                     </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) =>
-                        setFormData({ ...formData, status: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    <input
+                      value={editingId ? formData.status : "disponivel"}
+                      disabled
+                      aria-describedby="equipment-status-help"
+                      className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-gray-600"
+                    />
+                    <p
+                      id="equipment-status-help"
+                      className="mt-1 text-xs text-gray-500"
                     >
-                      {STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
+                      {editingId
+                        ? "Alterado somente pelas operações patrimoniais."
+                        : "Definido automaticamente no cadastro."}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1219,7 +1246,10 @@ export default function EquipamentosPage() {
                 </div>
 
                 {error && (
-                  <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <p
+                    role="alert"
+                    className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+                  >
                     {error}
                   </p>
                 )}
@@ -1253,6 +1283,11 @@ export default function EquipamentosPage() {
             locations={assetLocations}
             onClose={() => setMovementEquipment(null)}
             onMoved={loadEquipments}
+          />
+          <EquipmentRetirementDialog
+            equipment={retirementEquipment}
+            onClose={() => setRetirementEquipment(null)}
+            onCompleted={loadEquipments}
           />
           <EquipmentHistoryDialog
             equipment={historyEquipment}

@@ -188,8 +188,21 @@ export function EquipmentMovementDialog({
                 {error}
               </p>
             )}
+            {busy && (
+              <p
+                role="status"
+                className="rounded-lg bg-blue-50 p-3 text-sm font-medium text-blue-700"
+              >
+                Processando a movimentação e registrando na razão patrimonial...
+              </p>
+            )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={onClose}
+              >
                 Cancelar
               </Button>
               <Button type="submit" loading={busy}>
